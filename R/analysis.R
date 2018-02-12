@@ -111,6 +111,18 @@ analysesServer <- function(input, output, session) {
 
 # Survival analyses helper functions --------------------------------------
 
+#' Helper text to explain what happens when a patient matches multiple samples
+#' when performing survival analysis
+#' 
+#' @return Character
+patientMultiMatchWarning <- function() {
+    paste("While stratifying patients for survival analysis, patients",
+          "with multipe samples are assigned the average value of their",
+          "corresponding samples. However, for patients with both disease",
+          "and normal samples, it may be inappropriate to include the",
+          "values of their normal samples for survival analysis.")
+}
+
 #' Retrieve clinical data based on attributes required for survival analysis
 #' 
 #' @param ... Character: names of columns to retrieve
@@ -127,125 +139,68 @@ getClinicalDataForSurvival <- function(..., formulaStr=NULL) {
     return(clinical)
 }
 
-#' Assign the value from one of the patient's samples to that patient
+#' Assign average sample values to their corresponding patients
 #' 
-#' Assign a value to patients based on the frequency of the respective type of 
-#' their samples
-#' 
-#' @details
-#' Match filtered samples with patients to retrieve values per patient. One
-#' single sample is matched to a patient based on the sample type frequency. For
-#' instance, imagine that:
-#' 
-#' \itemize{
-#'     \item{10 patients have a tumour and control sample;}
-#'     \item{5 patients have a tumour sample;}
-#'     \item{2 patients have only a control sample;}
-#'     \item{2 patients have only a metastasis sample.}
-#' }
-#'  
-#' In total, there are 15 tumour, 12 control and 2 metastasis samples. As tumour
-#' samples are the majority, tumour samples will be matched to patients. 
-#' Patients without tumour samples will then be matched to control samples (2nd
-#' most frequent sample type), if available. Finally, the remaining patients 
-#' will be matched to metastasis samples.
-#' 
-#' @param data Data frame or matrix: values per sample
+#' @param data One-row data frame/matrix or vector: values per sample for a 
+#' single gene
+#' @param match Matrix: match between samples and patients
 #' @param clinical Data frame or matrix: clinical dataset (only required if the
 #' \code{patients} argument is not handed)
 #' @param patients Character: patient identifiers (only required if the
 #' \code{clinical} argument is not handed)
-#' @param pattern Character: pattern to use when filtering sample types (NULL by
-#' default, i.e. no filtering occurs)
-#' @param filterOut Boolean: filter out (TRUE) or filter in (FALSE) sample types
-#' based on a given pattern; by default, sample types are filtered out
-#' 
-#' @inheritParams matchPatientToSingleSample
+#' @param samples Character: samples to use when assigning values per patient 
+#' (if NULL, all samples will be used)
 #' 
 #' @return Values per patient
 #' @export
 getValuePerPatient <- function(data, match, clinical=NULL, patients=NULL,
-                               pattern=NULL, filterOut=TRUE) {
-    if (is.null(clinical) && is.null(patients)) {
+                               samples=NULL) {
+    hasOneRow     <- !is.null(nrow(data)) && nrow(data) == 1
+    isNamedVector <- is.vector(data) && !is.null(names(data))
+    if (!hasOneRow && !isNamedVector)
+        stop("Data needs to either have only one row or be a vector with",
+             "sample identifiers as names.")
+    
+    if (is.null(clinical) && is.null(patients))
         stop("You cannot leave both 'clinical' and 'patients' arguments ",
              "as NULL.")
-    } else if (is.null(patients)) {
+    else if (is.null(patients))
         patients <- rownames(clinical)
+    
+    if (!is.numeric(data)) {
+        ns   <- names(data)
+        data <- as.numeric(data)
+        names(data) <- ns
     }
     
-    # Get sample identifiers of interest
-    types <- parseSampleGroups(names(match))
+    # Filter by samples to use
+    if (!is.null(samples)) match <- match[names(match) %in% samples]
+    match <- match[!is.na(match)]
     
-    if (!is.null(pattern)) {
-        # Filter sample types based on a user-defined pattern
-        pattern <- paste(pattern, collapse="|")
-        filter <- grepl(pattern, types)
-        if (filterOut) filter <- !filter
-    } else {
-        filter <- TRUE
-    }
-    
-    matchFiltered <- match[filter]
-    matchFiltered <- matchFiltered[!is.na(matchFiltered)]
-    
-    # Assign only one sample per patient based on sample type frequency
-    matchSingle <- matchPatientToSingleSample(matchFiltered)
-    
-    # Match samples with clinical patients (remove non-matching samples)
-    clinicalValues <- data.frame(matrix(NA, nrow=nrow(data), 
-                                        ncol=length(patients)))
-    colnames(clinicalValues) <- patients
-    rownames(clinicalValues) <- rownames(data)
-    clinicalValues[ , matchSingle] <- data[ , names(matchSingle)]
-    return(clinicalValues)
+    # For each patient, assign the average value of its respective samples
+    res <- sapply(split(data[names(match)], match), mean, na.rm=TRUE)
+    return(res)
 }
 
 #' @rdname getValuePerPatient
+#' @export
 getValuePerSubject <- getValuePerPatient
 
 #' @rdname getValuePerPatient
-#' @param psi Data frame or matrix: values per sample
-getPSIperPatient <- function(psi, match, clinical=NULL, patients=NULL,
-                             pattern=NULL, filterOut=TRUE) {
-    .Deprecated("getValuePerPatient")
-    getValuePerPatient(psi, match, clinical, patients, pattern, filterOut)
-}
+#' @export
+assignValuePerPatient <- getValuePerPatient
 
-#' Match patients to a single sample according to sample type frequency
-#'
-#' Only one sample per patient is returned. For patients with more than one
-#' sample, the attributed sample is chosen according to the frequency of its
-#' type.
-#'
-#' @param match Matrix: match between samples and patients
-#'
-#' @return Integer containing the patient and the respective sample as its name
-matchPatientToSingleSample <- function(match) {
-    # Get frequency of sample types
-    types <- parseSampleGroups(names(match))
-    freq  <- names(sort(table(types), decreasing=TRUE))
-    # Create a list of patient-sample matches based on sample types
-    matchByType <- split(match, types)
-    # Order the list based on the frequency of the sample types
-    matchByType <- matchByType[freq]
-    
-    # Filter out duplicated items based on the items found on previous list
-    # indexes
-    filterDuplicatedItems <- function(i, aList) {
-        if (i == 1) {
-            diff <- TRUE
-        } else {
-            previous <- Reduce(union, aList[seq(i - 1)])
-            diff <- !aList[[i]] %in% previous
-        }
-        return(aList[[i]][diff])
-    }
-    
-    # Match patients to a single sample according to sample type frequency
-    res <- unlist(lapply(seq(matchByType), filterDuplicatedItems, matchByType))
-    # Remove potentially duplicated samples of the same sample type
-    res <- res[!duplicated(res)]
-    return(res)
+#' @rdname getValuePerPatient
+#' @export
+assignValuePerSubject <- getValuePerPatient
+
+#' @rdname getValuePerPatient
+#' @param psi Data frame or matrix: values per sample
+#' @param ... Deprecated arguments
+#' @export
+getPSIperPatient <- function(psi, match, clinical=NULL, patients=NULL, ...) {
+    .Deprecated("getValuePerPatient")
+    getValuePerPatient(psi, match, clinical, patients)
 }
 
 #' Process survival data to calculate survival curves
@@ -306,7 +261,7 @@ processSurvData <- function(event, timeStart, timeStop, followup, group,
 #' @param timeStart Character: name of column containing starting time of the
 #' interval or follow up time
 #' @param timeStop Character: name of column containing ending time of the 
-#' interval
+#' interval (only relevant for interval censoring)
 #' @param followup Character: name of column containing follow up time
 #' 
 #' @return Data frame containing the time for the given columns
@@ -408,9 +363,7 @@ updateClinicalParams <- function(session, attrs) {
 #' @importFrom stats formula
 #' @importFrom survival coxph Surv
 #'
-#' @details \code{timeStop} is only considered if \code{censoring} is either
-#' \code{interval} or \code{interval2}
-#'
+#' @details 
 #' If \code{survTime} is NULL, the survival times will be fetch from the
 #' clinical dataset according to the names given in \code{timeStart},
 #' \code{timeStop}, \code{event} and \code{followup}. This can became quite slow
@@ -489,7 +442,7 @@ processSurvTerms <- function(clinical, censoring, event, timeStart,
     return(res)
 }
 
-#' Compute estimate of a survival curve using processed survival terms
+#' Compute estimates of survival curves
 #' 
 #' @param survTerms \code{survTerms} object: processed survival terms
 #' @inheritDotParams survival::survfit.formula -formula -data
@@ -533,8 +486,7 @@ survfit.survTerms <- function(survTerms, ...) {
     return(res)
 }
 
-#' Test difference between two or more survival curves using processed survival 
-#' terms
+#' Test differences between survival curves
 #' 
 #' @param survTerms survTerms object: processed survival terms
 #' @inheritDotParams survival::survdiff -formula -data
@@ -649,7 +601,7 @@ processSurvival <- function(session, ...) {
     return(survTerms)
 }
 
-#' Test the survival difference between survival groups
+#' Test the survival difference between groups of patients
 #' 
 #' @inheritParams survdiff.survTerms
 #' @inheritDotParams survival::survdiff -formula -data
@@ -766,18 +718,21 @@ testSurvivalCutoff <- function(cutoff, data, filter=TRUE, clinical, ...,
     return(pvalue)
 }
 
-#' Calculate optimal alternative splicing quantification cutoff to separate
-#' survival curves
-#'
-#' @details \code{timeStop} is only considered if \code{censoring} is either
-#' \code{interval} or \code{interval2}
+#' Calculate optimal data cutoff that best separates survival curves
+#' 
+#' Uses \code{stats::optim} with the Brent method to test multiple cutoffs and
+#' to find the minimum log-rank p-value.
 #'
 #' @inheritParams processSurvTerms
 #' @inheritParams testSurvivalCutoff
-#' @param psi Numeric: PSI values to test against the cutoff
+#' @param data Numeric: data values
 #' @param session Shiny session (only used for the visual interface)
+#' @param lower,upper Bounds in which to search (if NULL, they will be 
+#' automatically set to 0 and 1 if all data values are within that interval;
+#' otherwise, they will be set to the minimum and maximum values of data)
 #' 
-#' @return Optimal alternative splicing quantification cutoff
+#' @return List containg the optimal cutoff (\code{par}) and the corresponding 
+#' p-value (\code{value})
 #' @export
 #' 
 #' @examples 
@@ -795,24 +750,53 @@ testSurvivalCutoff <- function(cutoff, data, filter=TRUE, clinical, ...,
 #' event      <- "days_to_death"
 #' 
 #' psi <- c(0.1, 0.2, 0.9, 1, 0.2, 0.6)
-#' opt <- optimalPSIcutoff(clinical, psi, "right", event, timeStart)
-optimalPSIcutoff <- function(clinical, psi, censoring, event, timeStart, 
-                             timeStop=NULL, followup="days_to_last_followup",
-                             session=NULL, filter=TRUE, survTime=NULL) {
-    if ( is.null(survTime) ) {
+#' opt <- optimalSurvivalCutoff(clinical, psi, "right", event, timeStart)
+optimalSurvivalCutoff <- function(clinical, data, censoring, event, timeStart, 
+                                  timeStop=NULL, 
+                                  followup="days_to_last_followup",
+                                  session=NULL, filter=TRUE, survTime=NULL, 
+                                  lower=NULL, upper=NULL) {
+    if (is.null(lower) && is.null(upper)) {
+        # Search between min and max of data
+        lower <- min(data, na.rm=TRUE)
+        upper <- max(data, na.rm=TRUE)
+        
+        if (lower >= 0 && upper <= 1) {
+            # Search between 0 and 1 (if data values are within that interval)
+            lower <- 0
+            upper <- 1
+        } else if (lower >= upper) {
+            upper <- lower + 1
+        }
+    }
+    
+    if ( is.null(survTime) )
         survTime <- getAttributesTime(clinical, event, timeStart, timeStop,
                                       followup)
-    }
     
     # Supress warnings from failed calculations while optimising
     opt <- suppressWarnings(
-        optim(0, testSurvivalCutoff, data=psi, filter=filter, clinical=clinical,
-              censoring=censoring, timeStart=timeStart, timeStop=timeStop, 
-              event=event, followup=followup, survTime=survTime,
-              session=session,
+        optim(0, testSurvivalCutoff, data=data, filter=filter, 
+              clinical=clinical, censoring=censoring, timeStart=timeStart,
+              timeStop=timeStop, event=event, followup=followup, 
+              survTime=survTime, session=session,
               # Method and parameters interval
-              method="Brent", lower=0, upper=1))
+              method="Brent", lower=lower, upper=upper))
     return(opt)
+}
+
+#' @rdname optimalSurvivalCutoff
+#' @param psi Numeric: PSI values to test against the cutoff
+#' @export
+optimalPSIcutoff <- function(clinical, psi, censoring, event, timeStart, 
+                             timeStop=NULL, followup="days_to_last_followup",
+                             session=NULL, filter=TRUE, survTime=NULL) {
+    .Deprecated("optimalSurvivalCutoff")
+    
+    optimalSurvivalCutoff(clinical=clinical, data=psi, censoring=censoring, 
+                          event=event, timeStart=timeStart, timeStop=timeStop, 
+                          followup=followup, session=session, filter=filter, 
+                          survTime=survTime, lower=0, upper=1)
 }
 
 # Differential analyses helper functions -----------------------------------
@@ -1427,7 +1411,7 @@ filterGroups <- function(vector, group, threshold=1) {
 #' unit
 #' @importFrom ggrepel geom_label_repel
 #' 
-#' @return HTML elements
+#' @return List containing HTML elements and highlighted points
 createEventPlotting <- function(df, x, y, params, highlightX, highlightY,
                                 highlightParams, selected, selectedParams,
                                 labelled, labelledParams, xlim, ylim) {
@@ -1457,7 +1441,6 @@ createEventPlotting <- function(df, x, y, params, highlightX, highlightY,
     } else {
         highlighted <- intersect(highlightedX, highlightedY)
     }
-    setHighlightedPoints("psi-volcano", highlighted)
     
     # Render remaining points
     plotted <- union(selected, highlighted)
@@ -1489,8 +1472,8 @@ createEventPlotting <- function(df, x, y, params, highlightX, highlightY,
     plot <- plot + do.call("geom_label_repel", c(
         list(data=mod[labelled, ], aesMod, na.rm=TRUE), labelledParams))
     
-    plot <- plot + coord_cartesian(xlim=xlim, ylim=ylim)
-    return(plot + theme_light(16))
+    plot <- plot + coord_cartesian(xlim=xlim, ylim=ylim) + theme_light(16)
+    return(list(plot=list(plot), highlighted=highlighted))
 }
 
 #' Show variable transformation(s)
@@ -1721,6 +1704,9 @@ plotDistribution <- function(data, groups="All samples", rug=TRUE, vLine=TRUE,
     if (vLine) hc <- hc %>% hc_xAxis(plotLines = plotLines)
     return(hc)
 }
+
+#' @rdname plotDistribution
+plotDensity <- plotDistribution
 
 #' Levene's test
 #' 

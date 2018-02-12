@@ -1,3 +1,40 @@
+# 1.4.4 (12 Feb, 2018)
+
+* Update CITATION file to show citation to article in bioRxiv:
+https://www.biorxiv.org/content/early/2018/02/07/261180
+* Update vignettes to include a case study based on the aforementioned article
+* Gene expression pipeline:
+    - Perform limma-trend by default
+* Alternative splicing quantification:
+    - Quantification of alternative first and last exons: following more 
+    thorough testing, the new exon-centred method was considered to be less 
+    relevant to exploratory analysis (specially when compared with other types 
+    of events); as such, both methods are now available for quantification
+* Dimensionality reduction:
+    - Change tolerated missing values per event to 5% by default for both PCA
+    and ICA (in both visual and command-line interfaces)
+    - PCA: In the table that shows the events that most contribute to the 
+    selected principal components, show the rank
+* Groups:
+    - Automatically set sample type groups (i.e. normal, primary solid tumour,
+    metastatic, etc.) for TCGA samples (visual interface only)
+* Differential analysis:
+    - Use numeric fields instead of sliders to precisely filter data
+    - Fix table for differential expression not being filtered based on
+    highlighted genes
+    - Filter splicing events or genes to use when performing exploratory
+    differential analyses
+* Survival analysis:
+    - Allow to stratify patients based on optimal gene expression cutoff
+    - Select samples to be used for survival analysis
+
+## Bug fixes
+
+* Fix problems related with DT versions >= 0.3:
+    - Groups displayed as having the same attributes as last created group
+    - Table not being updated in differential analyses according to event
+    filtering based on the volcano plot
+
 # 1.4.3 (12 Jan, 2018)
 
 * Alternative splicing quantification:
@@ -128,7 +165,7 @@ and a quick reference for functions
     chosen for the X and Y axes
     - Fix point that remains highlighted in the plot after deselecting the only
     selected row of the table
-    - Improve readibility of plot's tooltip
+    - Improve readability of plot's tooltip
     - Improve survival curves based on the optimal alternative splicing
     quantification cutoff:
         - Include the survival curve previews in 3 new columns within the
@@ -180,11 +217,11 @@ and a quick reference for functions
     automatically rendered with the respective options, as expected
 * Settings (renamed to "Help"):
     - Add links to tutorials and user feedback
-    - Add app information and acknowledgments
+    - Add app information and acknowledgements
     - Remove unused option for choosing cores (all performed operations are 
     still single-core, given the difficulty of working with multiprocesses in
     Shiny)
-* Improve dialogs regarding missing data and other minor interface elements
+* Improve dialogues regarding missing data and other minor interface elements
 * Update documentation with volcano plot
 
 # 1.0.9 (10 Apr, 2017)

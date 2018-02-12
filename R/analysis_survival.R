@@ -60,7 +60,7 @@ survivalUI <- function(id) {
         conditionalPanel(
             sprintf("input[id='%s'] == '%s'", ns("modelTerms"), "groups"),
             selectGroupsUI(ns("dataGroups"), label=NULL),
-            checkboxInput(ns("showOutGroup"), 
+            checkboxInput(ns("showOutGroup"),
                           "Show data outside selected groups",
                           value = FALSE)),
         conditionalPanel(
@@ -78,6 +78,15 @@ survivalUI <- function(id) {
                 "Interesting attributes include", tags$b("tumor_stage"), 
                 "to get tumour stages.")),
         conditionalPanel(
+            sprintf("input[id='%s'].includes('%s')", ns("modelTerms"), 
+                    "Cutoff"),
+            selectGroupsUI(
+                ns("sampleFiltering"),
+                label=div(id=ns("helpFiltering"), "Sample filtering", 
+                          icon("question-circle"))),
+            bsTooltip(ns("helpFiltering"), options=list(container="body"),
+                      placement="right", patientMultiMatchWarning())),
+        conditionalPanel(
             sprintf("input[id='%s'] == '%s'", ns("modelTerms"), "geCutoff"),
             hidden(selectizeInput(
                 ns("geneExpr"), "Gene expression", width="100%",
@@ -89,7 +98,7 @@ survivalUI <- function(id) {
             hidden(selectizeGeneInput(ns("gene"))),
             hidden(sliderInput(ns("geCutoff"), value=0.5, min=0, max=1,
                                step=0.01, round=-2, "Gene expression cutoff")),
-            hidden(helpText(uiOutput(ns("geInfo")))),
+            hidden(uiOutput(ns("geInfo"))),
             uiOutput(ns("gePvaluePlot"))),
         conditionalPanel(
             sprintf("input[id='%s'] == '%s'", ns("modelTerms"), "psiCutoff"),
@@ -158,7 +167,8 @@ checkSurvivalInput <- function (session, input, coxph=FALSE) {
         markTimes  <- input$markTimes
         scale      <- input$scale
         # Get chosen groups
-        chosen <- getSelectedGroups(input, "dataGroups", "Patients")
+        chosen  <- getSelectedGroups(input, "dataGroups", "Patients")
+        samples <- getSelectedGroups(input, "sampleFiltering", "Samples")
         # Get clinical data for the required attributes
         followup <- "days_to_last_followup"
         clinical <- getClinicalDataForSurvival(timeStart, timeStop, event,
@@ -197,8 +207,9 @@ checkSurvivalInput <- function (session, input, coxph=FALSE) {
         }
         
         # Assign values to patients based on their samples
-        clinicalGE <- getValuePerPatient(geneExpr, match, patients=patients)
-        eventGE <- as.numeric(clinicalGE[gene, ])
+        eventGE <- assignValuePerPatient(geneExpr[gene, ], match, 
+                                         patients=patients, 
+                                         samples=unlist(samples))
         
         # Assign a value based on the inclusion levels cutoff
         groups <- labelBasedOnCutoff(eventGE, geCutoff, "Gene expression")
@@ -220,8 +231,9 @@ checkSurvivalInput <- function (session, input, coxph=FALSE) {
         }
         
         # Assign values to patients based on their samples
-        clinicalPSI <- getValuePerPatient(psi, match, patients=patients)
-        eventPSI <- as.numeric(clinicalPSI[splicingEvent, ])
+        eventPSI <- assignValuePerPatient(psi[splicingEvent, ], match, 
+                                          patients=patients, 
+                                          samples=unlist(samples))
         
         # Assign a value based on the inclusion levels cutoff
         groups <- labelBasedOnCutoff(eventPSI, psiCutoff, "Inclusion levels")
@@ -313,11 +325,11 @@ geneExprSurvSet <- function(session, input, output) {
     # observe({
     #     geneExpr <- getGeneExpression()[[input$geneExpr]]
     #     event    <- getEvent()
-    #     if (input$modelTerms == "geCutoff" && !is.null(geneExpr) &&
+    #     if (isolate(input$modelTerms) == "geCutoff" && !is.null(geneExpr) &&
     #         !is.null(event)) {
+    #         
     #         gene <- parseSplicingEvent(event)$gene[[1]][[1]]
     #         gene <- grep(gene, rownames(geneExpr), value=TRUE)[[1]]
-    #         print(gene)
     #         updateSelectizeInput(session, "gene", selected=gene)
     #     }
     # })
@@ -327,8 +339,8 @@ geneExprSurvSet <- function(session, input, output) {
     updateGEcutoffSlider <- reactive({
         geneExpr <- getGeneExpression()[[input$geneExpr]]
         ge <- as.numeric(geneExpr[input$gene, ])
-        updateSliderInput(session, "geCutoff", min=min(ge), max=max(ge),
-                          value=mean(ge))
+        updateSliderInput(session, "geCutoff", min=roundMinDown(ge, 2), 
+                          max=roundMaxUp(ge, 2), value=round(mean(ge), 2))
     })
 
     # Update gene expression cutoff values based on selected gene
@@ -344,34 +356,99 @@ geneExprSurvSet <- function(session, input, output) {
     })
     
     # Update gene information based on selected gene
-    output$geInfo <- renderUI({
+    observe({
         geneExpr <- getGeneExpression()[[input$geneExpr]]
         gene     <- input$gene
         terms    <- input$modelTerms
-        if (!is.null(geneExpr) && !is.null(gene) && terms == "geCutoff") {
-            ge <- as.numeric(geneExpr[gene, ])
-            return(sprintf("Mean expression for %s: %s", gene, mean(ge)))
-        } else {
-            return(NULL)
+        
+        patients <- getPatientId()
+        match    <- getClinicalMatchFrom("Inclusion levels")
+        # Get user input
+        timeStart <- input$timeStart
+        timeStop  <- input$timeStop
+        event     <- input$event
+        censoring <- input$censoring
+        samples   <- getSelectedGroups(input, "sampleFiltering", "Samples")
+        # Get clinical data for the required attributes
+        followup <- "days_to_last_followup"
+        clinical <- getClinicalDataForSurvival(timeStart, timeStop, event,
+                                               followup)
+        
+        ui <- NULL
+        if (!is.null(geneExpr) && !is.null(gene) && !identical(gene, "") &&
+            terms == "geCutoff" && !is.null(clinical)) {
+            
+            # Assign gene expression values to patients based on their samples
+            eventGE <- assignValuePerPatient(geneExpr[gene, ], match, 
+                                             patients=patients, 
+                                             samples=unlist(samples))
+            
+            # Mean gene expression cutoff
+            meanGEcutoff <- round(mean(eventGE, na.rm=TRUE), 2)
+            label        <- labelBasedOnCutoff(eventGE, meanGEcutoff, 
+                                               label="Gene expression")
+            survTerms    <- processSurvTerms(clinical, censoring=censoring,
+                                             event=event, timeStart=timeStart,
+                                             timeStop=timeStop, 
+                                             followup=followup, group=label)
+            meanGEpvalue <- testSurvival(survTerms)
+            
+            updateSliderInput(session, "geCutoff", value=meanGEcutoff)
+            
+            # Optimal gene expression cutoff
+            opt       <- optimalSurvivalCutoff(clinical, eventGE,
+                                               censoring=censoring, 
+                                               event=event, timeStart=timeStart, 
+                                               timeStop=timeStop, 
+                                               session=session)
+            
+            optimal   <- round(opt$par, 2)
+            label     <- labelBasedOnCutoff(eventGE, optimal, 
+                                            label="Gene expression")
+            survTerms <- processSurvTerms(clinical, censoring=censoring,
+                                          event=event, timeStart=timeStart,
+                                          timeStop=timeStop, followup=followup,
+                                          group=label)
+            optPvalue <- testSurvival(survTerms)
+            
+            df <- data.frame(c("Mean expression", "Optimal cutoff"),
+                             c(meanGEcutoff, optimal),
+                             paste("p-value:", c(meanGEpvalue, optPvalue)))
+            ui <- table2html(df, rownames=FALSE, colnames=FALSE, class="table")
+            
+            addLinkToUpdateSliderValue <- function(val) {
+                val  <- format(val, nsmall=2)
+                link <- linkToRunJS(val, sprintf("setGEcutoffSlider(%s)", val))
+                gsub(val, link, ui, fixed=TRUE)
+            }
+            
+            ui <- addLinkToUpdateSliderValue(meanGEcutoff)
+            ui <- addLinkToUpdateSliderValue(optimal)
         }
+        
+        output$geInfo <- renderUI(tags$html(ui))
+        # output$geInfo <- renderUI(tagList(helpText(meanGEtext),
+        #                                   helpText(optGEtext)))
     })
 
-    output$gePvaluePlot <- renderUI({
+    observe({
         patients <- getPatientId()
         geneExpr <- getGeneExpression()[input$geneExpr]
         gene     <- input$gene
 
         if (is.null(patients)) {
             hide("geOptions")
-            return(helpText(icon("exclamation-circle"),
-                            "Please load clinical data."))
+            info <- helpText(icon("exclamation-circle"),
+                             "Please load clinical data.")
         } else if (is.null(geneExpr)) {
             hide("geOptions")
-            return(helpText(icon("exclamation-circle"),
-                            "Please load gene expression data."))
+            info <- helpText(icon("exclamation-circle"),
+                             "Please load gene expression data.")
         } else {
-            return(NULL)
+            info <- NULL
         }
+        
+        output$gePvaluePlot <- renderUI(info)
     })
 }
 
@@ -391,6 +468,9 @@ survivalServer <- function(input, output, session) {
     ns <- session$ns
     
     selectGroupsServer(session, "dataGroups", "Samples")
+    selectGroupsServer(session, "sampleFiltering", "Samples",
+                       # Prefer TCGA tumour samples
+                       preference="Primary solid Tumor")
     
     observe({
         if ( is.null(getPatientAttributes()) ) {
@@ -595,6 +675,7 @@ survivalServer <- function(input, output, session) {
         followup <- "days_to_last_followup"
         clinical <- getClinicalDataForSurvival(timeStart, timeStop, event,
                                                followup)
+        samples <- getSelectedGroups(input, "sampleFiltering", "Samples")
         
         if (is.null(patients)) {
             hide("psiCutoff")
@@ -615,15 +696,16 @@ survivalServer <- function(input, output, session) {
             # output$coxTests  <- renderDataTable(NULL)
             # output$coxGroups <- renderDataTable(NULL)
             
-            # Assign alternative splicing quantification to patients based on
-            # their samples
-            clinicalPSI <- getValuePerPatient(psi, match, patients=patients)
-            eventPSI <- as.numeric(clinicalPSI[splicingEvent, ])
+            # Assign values to patients based on their samples
+            eventPSI <- assignValuePerPatient(psi[splicingEvent, ], match, 
+                                              patients=patients,
+                                              samples=unlist(samples))
             
             # Calculate optimal alternative splicing quantification cutoff
-            opt <- optimalPSIcutoff(clinical, eventPSI, censoring=censoring, 
-                                    event=event, timeStart=timeStart, 
-                                    timeStop=timeStop, session=session)
+            opt <- optimalSurvivalCutoff(clinical, eventPSI, 
+                                         censoring=censoring, event=event, 
+                                         timeStart=timeStart, timeStop=timeStop, 
+                                         session=session)
             
             observe({
                 value <- 0.5
@@ -705,14 +787,15 @@ survivalServer <- function(input, output, session) {
         followup <- "days_to_last_followup"
         clinical <- getClinicalDataForSurvival(timeStart, timeStop, event,
                                                followup)
+        samples <- getSelectedGroups(input, "sampleFiltering", "Samples")
         
         if (is.null(splicingEvent) || splicingEvent == "" || 
             is.null(psi) || is.null(patients)) return(NULL)
         
-        # Assign alternative splicing quantification to patients based on their
-        # samples
-        clinicalPSI <- getValuePerPatient(psi, match, patients=patients)
-        eventPSI <- as.numeric(clinicalPSI[splicingEvent, ])
+        # Assign values to patients based on their samples
+        eventPSI <- assignValuePerPatient(psi[splicingEvent, ], match, 
+                                          patients=patients, 
+                                          samples=unlist(samples))
         
         pvalue <- testSurvivalCutoff(
             psiCutoff, data=eventPSI, clinical=clinical, censoring=censoring, 

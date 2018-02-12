@@ -20,7 +20,7 @@ diffExpressionTableUI <- function(id) {
     
     statAnalysesOptions <- div(
         id=ns("statAnalysesOptions"),
-        selectizeInput(ns("geneExpr"), "Gene expression", choices=NULL,
+        selectizeInput(ns("geneExpr"), "Gene expression dataset", choices=NULL,
                        width="100%"),
         bsCollapse(
             open=c("lmFit"),
@@ -28,10 +28,11 @@ diffExpressionTableUI <- function(id) {
                 tagList(icon("compress"), "Gene-wise linear model fit"),
                 value="lmFit",
                 helpText("The", tags$code("limma::lmFit"), "function is used",
-                         "to fit a linear model per gene, based on a design",
+                         "to fit a linear model per gene based on a design",
                          "matrix prepared from the two selected groups."),
-                selectGroupsUI(ns("diffGroups"), label="Groups of samples",
-                               maxItems=2)),
+                selectGroupsUI(
+                    ns("diffGroups"), maxItems=2,
+                    label="Select two groups for differential expression")),
             bsCollapsePanel(
                 tagList(icon("adjust"), "Differential expression statistics"), 
                 value="eBayes",
@@ -40,6 +41,11 @@ diffExpressionTableUI <- function(id) {
                     "compute moderated t-tests and log-odds of differential",
                     "expression by empirical Bayes moderation of the standard",
                     "errors towards a common value."),
+                radioButtons(
+                    ns("ebayesPriorVar"), "Prior gene-wise variance modelling",
+                    list("Constant pooled variance"="constant",
+                         "Mean-variance trend (limma-trend)"="trend"),
+                    selected="trend"),
                 sliderInput(
                     ns("ebayesProportion"), min=0, max=1, value=0.01, step=0.01,
                     width="100%",
@@ -48,10 +54,10 @@ diffExpressionTableUI <- function(id) {
                 helpText("Assumed limit for the standard deviation of log2",
                          "fold-changes for differentially expressed genes:"),
                 fluidRow(
-                    column(6, numericInput(ns("ebaysStdevMin"), "Lower limit",
+                    column(6, numericInput(ns("ebayesStdevMin"), "Lower limit",
                                            min=0, value=0.1, step=0.1, 
                                            width="100%")),
-                    column(6, numericInput(ns("ebaysStdevMax"), "Upper limit",
+                    column(6, numericInput(ns("ebayesStdevMax"), "Upper limit",
                                            min=0, value=4, step=0.1, 
                                            width="100%"))))),
         tags$b("Extra analyses that are performed:"),
@@ -187,10 +193,13 @@ diffExpressionSet <- function(session, input, output) {
         
         # Calculate moderated t-statistics and DE log-odds using limma::eBayes
         ebayesProportion <- input$ebayesProportion
-        ebaysStdevMin    <- input$ebaysStdevMin
-        ebaysStdevMax    <- input$ebaysStdevMax
-        stats <- eBayes(fit, proportion=ebayesProportion, 
-                        stdev.coef.lim=c(ebaysStdevMin, ebaysStdevMax))
+        ebayesStdevMin   <- input$ebayesStdevMin
+        ebayesStdevMax   <- input$ebayesStdevMax
+        ebayesPriorVar   <- input$ebayesPriorVar
+        limmaTrend       <- identical(ebayesPriorVar, "trend")
+        
+        stats <- eBayes(fit, proportion=ebayesProportion, trend=limmaTrend,
+                        stdev.coef.lim=c(ebayesStdevMin, ebayesStdevMax))
         
         # Prepare data summary
         pvalueAdjust <- input$pvalueAdjust
@@ -305,7 +314,8 @@ diffExpressionPlotSet <- function(session, input, output) {
         observe({
             highlightUI <- function(label, min, max) {
                 highlightId <- ns(paste0(label, "Highlight"))
-                sliderId    <- ns(paste0(label, "Slider"))
+                sliderMinId <- ns(paste0(label, "SliderMin"))
+                sliderMaxId <- ns(paste0(label, "SliderMax"))
                 sliderInvId <- ns(paste0(label, "SliderInv"))
                 
                 # Round max and min numbers with two decimal points
@@ -314,10 +324,13 @@ diffExpressionPlotSet <- function(session, input, output) {
                 
                 conditionalPanel(
                     sprintf("input[id='%s']", highlightId),
-                    sliderInput(sliderId, "Values to highlight", min=min,
-                                max=max, value=c(min, max), dragRange=TRUE,
-                                step=0.01, round=getPrecision(), sep="",
-                                width="100%"),
+                    fluidRow(
+                        column(6, numericInput(sliderMinId, "Lower limit",
+                                               min=min, value=min, step=0.1,
+                                               width="100%")),
+                        column(6, numericInput(sliderMaxId, "Upper limit",
+                                               max=max, value=max, step=0.1,
+                                               width="100%"))),
                     checkboxInput(sliderInvId, "Invert highlighted values"),
                     helpText("The data in the table is also filtered",
                              "according to highlighted events."))
@@ -416,59 +429,66 @@ diffExpressionPlotSet <- function(session, input, output) {
         xLabel <- res$xLabel
         yLabel <- res$yLabel
         
-        ggplotServer(input=input, output=output, id="ge-volcano", 
-                     df=stats, x=xLabel, y=yLabel, plot={
-                         if (input$xHighlight) {
-                             highlightX <- input$xSlider
-                             attr(highlightX, "inverted") <- input$xSliderInv
-                         } else {
-                             highlightX <- NULL
-                         }
-                         
-                         if (input$yHighlight) {
-                             highlightY <- input$ySlider
-                             attr(highlightY, "inverted") <- input$ySliderInv
-                         } else {
-                             highlightY <- NULL
-                         }
-                         
-                         # Check selected events
-                         selected <- getSelectedPoints("ge-volcano")
-                         selected <- rownames(filtered)[selected]
-                         selected <- which(rownames(stats) %in% selected)
-                         if (length(selected) < 1) selected <- NULL
-                         
-                         events <- getHighlightedPoints("ge-volcano")
-                         
-                         params <- list(size=input$baseSize, 
-                                        col=input$baseColour,
-                                        alpha=input$baseAlpha)
-                         highlightParams <- list(size=input$highlightedSize,
-                                                 col=input$highlightedColour,
-                                                 alpha=input$highlightedAlpha)
-                         selectedParams  <- list(size=input$selectedSize,
-                                                 col=input$selectedColour,
-                                                 alpha=input$selectedAlpha)
-                         labelledParams  <- list(size=input$labelledSize,
-                                                 col=input$labelledColour,
-                                                 alpha=input$labelledAlpha)
-                         
-                         zoom <- getZoom("ge-volcano")
-                         if (!is.null(zoom)) {
-                             xlim <- c(zoom$xmin, zoom$xmax)
-                             ylim <- c(zoom$ymin, zoom$ymax)
-                         } else {
-                             xlim <- NULL
-                             ylim <- NULL
-                         }
-                         
-                         labelled <- getLabelledPoints("ge-volcano")
-                         createEventPlotting(
-                             stats, xLabel, yLabel, params, 
-                             highlightX, highlightY, highlightParams, 
-                             selected, selectedParams, labelled, labelledParams,
-                             xlim=xlim, ylim=ylim)
-                     })
+        ggplotServer(
+            input=input, output=output, id="ge-volcano", df=stats, x=xLabel, 
+            y=yLabel, plot={
+                diffType <- "ge-volcano"
+                parseHighlight <- function(input, arg) {
+                    argStr <- function(...) paste0(arg, ...)
+                    
+                    if (!input[[argStr("Highlight")]]) return(NULL)
+                    
+                    highlightMin <- input[[argStr("SliderMin")]]
+                    highlightMax <- input[[argStr("SliderMax")]]
+                    
+                    noMin <- is.null(highlightMin) || is.na(highlightMin)
+                    noMax <- is.null(highlightMax) || is.na(highlightMax)
+                    if (noMin || noMax || highlightMin >= highlightMax)
+                        return(NULL)
+                    
+                    highlight <- c(highlightMin, highlightMax)
+                    attr(highlight, "inverted") <- input[[argStr("SliderInv")]]
+                    return(highlight)
+                }
+                
+                highlightX <- parseHighlight(input, "x")
+                highlightY <- parseHighlight(input, "y")
+                
+                # Check selected events
+                selected <- getSelectedPoints(diffType)
+                selected <- rownames(filtered)[selected]
+                selected <- which(rownames(stats) %in% selected)
+                if (length(selected) < 1) selected <- NULL
+                
+                params <- list(size=input$baseSize, col=input$baseColour,
+                               alpha=input$baseAlpha)
+                highlightParams <- list(size=input$highlightedSize,
+                                        col=input$highlightedColour,
+                                        alpha=input$highlightedAlpha)
+                selectedParams  <- list(size=input$selectedSize,
+                                        col=input$selectedColour,
+                                        alpha=input$selectedAlpha)
+                labelledParams  <- list(size=input$labelledSize,
+                                        col=input$labelledColour,
+                                        alpha=input$labelledAlpha)
+                
+                zoom <- getZoom(diffType)
+                if (!is.null(zoom)) {
+                    xlim <- c(zoom$xmin, zoom$xmax)
+                    ylim <- c(zoom$ymin, zoom$ymax)
+                } else {
+                    xlim <- NULL
+                    ylim <- NULL
+                }
+                
+                labelled <- getLabelledPoints(diffType)
+                eventPlot <- createEventPlotting(
+                    stats, xLabel, yLabel, params, highlightX, highlightY, 
+                    highlightParams, selected, selectedParams, labelled, 
+                    labelledParams, xlim=xlim, ylim=ylim)
+                setHighlightedPoints(diffType, eventPlot$highlighted)
+                eventPlot$plot[[1]]
+            })
     })
     
     ggplotAuxServer(input, output, "ge-volcano")
@@ -476,7 +496,7 @@ diffExpressionPlotSet <- function(session, input, output) {
 
 #' Set of functions to render data table for differential analyses
 #' 
-#' @importFrom DT reloadData dataTableProxy dataTableAjax selectRows
+#' @importFrom DT dataTableProxy selectRows replaceData
 #' @importFrom shinyjs toggleElement
 #' @importFrom utils write.table
 #' 
@@ -506,7 +526,7 @@ diffExpressionTableSet <- function(session, input, output) {
                  columnDefs=list(list(targets=1, searchable=FALSE))))
     
     # Update table with filtered information
-    proxy <- dataTableProxy(ns("statsTable"))
+    proxy <- dataTableProxy("statsTable")
     observe({
         stats <- getDifferentialExpression()
         
@@ -589,10 +609,8 @@ diffExpressionTableSet <- function(session, input, output) {
                         as.numeric(signifDigits(stats[ , col])))
                 }
             }
-            
-            dataTableAjax(session, stats, outputId="statsTable")
-            reloadData(proxy, resetPaging=resetPaging)
-            if (!is.null(selected)) selectRows(proxy, selected)
+            replaceData(proxy, stats, resetPaging=resetPaging, 
+                        clearSelection="none")
         }
     })
     
