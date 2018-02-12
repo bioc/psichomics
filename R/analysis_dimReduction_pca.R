@@ -16,7 +16,8 @@
 #' 
 #' @examples 
 #' performPCA(USArrests)
-performPCA <- function(data, center=TRUE, scale.=FALSE, missingValues=10, ...) {
+performPCA <- function(data, center=TRUE, scale.=FALSE, 
+                       missingValues=round(0.05 * nrow(data)), ...) {
     reduceDimensionality(data, "pca", missingValues=missingValues, 
                          center=center, scale.=scale., ...)
 }
@@ -226,10 +227,11 @@ plotVariance <- function(pca) {
 #' 
 #' @source \url{http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/112-pca-principal-component-analysis-essentials/}
 #'
+#' @export
 #' @return Data frame containing the correlation between variables and selected 
 #' principal components and the contribution of variables to the selected 
 #' principal components (both individual and total contribution)
-calculateLoadingsContribution <- function(pca, pcX, pcY) {
+calculateLoadingsContribution <- function(pca, pcX=1, pcY=2) {
     loadings <- data.frame(pca$rotation)[, c(pcX, pcY)]
     sdev <- pca$sdev[c(pcX, pcY)]
     # Get a proportional value to eigenvalues based on standard deviation
@@ -264,6 +266,7 @@ calculateLoadingsContribution <- function(pca, pcX, pcY) {
     
     # Sort by total contribution to principal components
     table <- table[order(table[ , ncol(table)], decreasing=TRUE), ]
+    table <- cbind("Rank"=seq(nrow(table)), table)
     
     attr(table, "xValues") <- values[1]
     attr(table, "yValues") <- values[2]
@@ -533,19 +536,20 @@ clusterSet <- function(session, input, output) {
             # Match samples with patients (if loaded)
             patients <- isolate(getPatientId())
             if (!is.null(patients)) {
-                indiv  <- lapply(new, function(i)
+                indiv <- lapply(new, function(i)
                     unname(getPatientFromSample(i, patientId=patients)))
-                groups <- cbind(groups[ , 1:3], "Patients"=indiv, 
-                                groups[ , 4, drop=FALSE])
+                groups <- cbind(groups[ , 1:3, drop=FALSE], "Patients"=indiv, 
+                                groups[ ,   4, drop=FALSE])
             }
             
             if (!is.null(groups)) appendNewGroups("Samples", groups)
             infoModal(
                 session, "Groups successfully created",
                 "The following groups were created based on the selected",
-                "clustering options. They are available for selection and",
-                "modification from any group selection input.", hr(),
-                tableOutput(session$ns("clusteringTable")) )
+                "clustering options.", hr(),
+                tableOutput(session$ns("clusteringTable")),
+                footer=actionButton(session$ns("goToGroups"), "Show groups",
+                                    class="btn-info", "data-dismiss"="modal"))
             
             # Render as table for user
             colnames(groups)[1] <- "Group"
@@ -559,6 +563,8 @@ clusterSet <- function(session, input, output) {
                                                   align="c")
         }
     })
+    
+    observeEvent(input$goToGroups, runjs("showGroups('Samples');"))
 }
 
 #' @rdname appServer

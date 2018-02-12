@@ -31,7 +31,8 @@ selectGroupsUI <- function (
                        return "<div><b>" + escape(item.value) + "</b><small> " + 
                            escape(item.label) + "</small></div>"; },
                    item: function(item, escape) {
-                        return "<div>" + escape(item.value) + "</div>";
+                       return "<div><b>" + escape(item.value) + "</b><small> " + 
+                           escape(item.label) + "</small></div>";
                    } }')))
     
     if ( !is.null(label) ) {
@@ -69,11 +70,13 @@ selectGroupsUI <- function (
 #' 
 #' @inheritParams getGroups
 #' @param session Shiny session
+#' @param preference Character: name of groups to pre-select, when available
+#' (if NULL, all groups will be pre-selected)
 #' 
 #' @importFrom shinyjs enable disable onclick toggleClass runjs
 #' 
 #' @return \code{selectGroupsServer}: Server logic for group selection
-selectGroupsServer <- function(session, id, type) {
+selectGroupsServer <- function(session, id, type, preference=NULL) {
     ns     <- session$ns
     input  <- session$input
     output <- session$output
@@ -127,7 +130,10 @@ selectGroupsServer <- function(session, id, type) {
         
         currentSelection <- isolate(input[[id]])
         if (is.null(currentSelection)) {
-            selected <- groups
+            if (is.null(preference))
+                selected <- groups
+            else
+                selected <- groups[groups %in% preference]
         } else {
             selected <- currentSelection[currentSelection %in% groups]
             if (length(selected) == 0) selected <- groups
@@ -480,7 +486,7 @@ groupById <- function(ns, id) {
         helpText("Example: ", tags$kbd("1:6, 8, 10:19"), "creates a group with",
                  "rows 1 to 6, 8 and 10 to 19. You can also input identifiers",
                  "instead of indexes."),
-        textInput(ns(paste0("groupNameRows", id)), "Group name", width="auto",
+        textInput(ns(paste0("groupNameRows", id)), "Group label", width="auto",
                   placeholder="Unnamed"),
         actionButton(ns(paste0("createGroupRows", id)), "Create group", 
                      class="btn-primary")
@@ -502,8 +508,8 @@ groupByExpression <- function(ns, id) {
                  'with values higher than 8 for column X and "alive" for',
                  'column Y.'),
         uiOutput(ns(paste0("groupExpressionSuggestions", id))),
-        textInput(ns(paste0("groupNameSubset", id)), "Group name", width="auto",
-                  placeholder="Unnamed"),
+        textInput(ns(paste0("groupNameSubset", id)), "Group label", 
+                  width="auto", placeholder="Unnamed"),
         actionButton(ns(paste0("createGroupSubset", id)), "Create group",
                      class="btn-primary")
     )
@@ -522,7 +528,7 @@ groupByGrep <- function(ns, cols, id) {
                   width="auto"),
         selectizeInput(ns(paste0("grepColumn", id)), "Select column to GREP",
                        choices=cols, width="auto"),
-        textInput(ns(paste0("groupNameRegex", id)), "Group name", width="auto",
+        textInput(ns(paste0("groupNameRegex", id)), "Group label", width="auto",
                   placeholder="Unnamed"),
         actionButton(ns(paste0("createGroupRegex", id)), "Create group", 
                      class="btn-primary")
@@ -594,16 +600,25 @@ assignColours <- function(new, groups=NULL) {
 #' 
 #' @inheritParams getGroups
 #' @param new Rows of groups to be added
+#' @param clearOld Boolean: clear old groups?
 #' 
 #' @return NULL (this function is used to modify the Shiny session's state)
-appendNewGroups <- function(type, new) {
+appendNewGroups <- function(type, new, clearOld=FALSE) {
     # Rename duplicated group names
-    groups <- getGroups(type, complete=TRUE)
+    if (clearOld) 
+        groups <- NULL
+    else
+        groups <- getGroups(type, complete=TRUE)
+    
     new <- renameGroups(new, groups)
     new <- assignColours(new, groups)
     
-    # Append the new group(s) to the groups already created
-    groups <- rbind(new, groups)
+    if (clearOld) {
+        groups <- new
+    } else {
+        # Append the new group(s) to the groups already created
+        groups <- rbind(new, groups)
+    }
     setGroups(type, groups)
 }
 
@@ -747,7 +762,9 @@ createGroupByColumn <- function(col, dataset) {
     createGroupByAttribute(col, dataset)
 }
 
-#' Create groups based on the unique values of a given column
+#' Split elements into groups based on a given column of a dataset
+#' 
+#' Elements are identified by their respective row name.
 #' 
 #' @param col Character: column name
 #' @param dataset Matrix or data frame: dataset
@@ -1086,7 +1103,13 @@ showGroupsTable <- function(type) {
         ordered <- groups[ , ord, drop=FALSE]
         colnames(ordered)[1] <- "Group"
         colnames(ordered) <- gsub("ASevents", "AS events", colnames(ordered))
-        return(ordered)
+        
+        # Unlist items as required for newer versions of DT
+        if (nrow(ordered) == 1)
+            ordered <- t(apply(ordered, 1, unlist))
+        else
+            ordered <- apply(ordered, 2, unlist)
+        return(data.frame(ordered, stringsAsFactors=FALSE))
     } else {
         return(NULL)
     }
@@ -1759,6 +1782,28 @@ groupsServerOnce <- function(input, output, session) {
                                           patients, match=match)
             group <- cbind(group, "Samples"=samples)
             setGroups("Samples", group)
+        }
+    })
+    
+    # Create groups by sample types when loading TCGA data
+    observe({
+        sampleInfo <- getSampleInfo()
+        if (!is.null(sampleInfo) && any(grepl("^TCGA", rownames(sampleInfo)))) {
+            new    <- createGroupByAttribute("Sample types", sampleInfo)
+            groups <- cbind("Names"=names(new), "Subset"="Attribute",
+                            "Input"="Sample types", "Samples"=new)
+
+            # Match samples with patients (if loaded)
+            patients <- isolate(getPatientId())
+            if (!is.null(patients)) {
+                indiv <- lapply(new, function(i)
+                    unname(getPatientFromSample(i, patientId=patients)))
+                groups <- cbind(groups[ , 1:3, drop=FALSE], "Patients"=indiv,
+                                groups[ ,   4, drop=FALSE])
+            }
+            
+            if (!is.null(groups)) 
+                isolate( appendNewGroups("Samples", groups, clearOld=TRUE) )
         }
     })
 }

@@ -4,10 +4,16 @@
 \alias{table2html}
 \title{Create HTML table from data frame or matrix}
 \usage{
-table2html(data)
+table2html(data, rownames = TRUE, colnames = TRUE, class = NULL)
 }
 \arguments{
 \item{data}{Data frame or matrix}
+
+\item{rownames}{Boolean: print row names?}
+
+\item{colnames}{Boolean: print column names?}
+
+\item{class}{Character: table class}
 }
 \value{
 HTML elements

@@ -23,6 +23,9 @@ diffSplicingTableUI <- function(id) {
         selectGroupsUI(ns("diffGroups"), label="Groups of samples to analyse",
                        noGroupsLabel="All samples as one group",
                        groupsLabel="Samples by selected groups"),
+        selectGroupsUI(ns("diffASevents"), label="Splicing events to analyse",
+                       noGroupsLabel="All splicing events",
+                       groupsLabel="Splicing events from selected groups"),
         checkboxGroupInput(
             ns("statsChoices"), width="100%",
             "Choose statistical analyses to perform:",
@@ -107,6 +110,12 @@ diffSplicingTableUI <- function(id) {
                  "to last follow up is used instead."),
         selectizeInput(ns("event"), choices=NULL, width="100%",
                        "Event of interest"),
+        selectGroupsUI(
+            ns("sampleFiltering"),
+            label=div(id=ns("helpFiltering"), "Sample filtering", 
+                      icon("question-circle"))),
+        bsTooltip(ns("helpFiltering"), options=list(container="body"),
+                  placement="right", patientMultiMatchWarning()),
         radioButtons(
             ns("selected"), "Perform survival analysis based on", width="100%",
             choices=c(
@@ -187,9 +196,10 @@ diffSplicingTableUI <- function(id) {
 #' 
 #' Data is presented in the table for statistical analyses
 #' 
-#' @inheritParams optimalPSIcutoff
+#' @inheritParams optimalSurvivalCutoff
 #' @param eventPSI Numeric: alternative splicing quantification for multiple
 #' samples relative to a single splicing event
+#' @inheritParams assignValuePerPatient
 #' 
 #' @importFrom shiny tags
 #' @importFrom jsonlite toJSON
@@ -199,12 +209,13 @@ diffSplicingTableUI <- function(id) {
 #' @return Survival data including optimal PSI cutoff, minimal survival p-value
 #' and HTML element required to plot survival curves
 createOptimalSurvData <- function(eventPSI, clinical, censoring, event, 
-                                  timeStart, timeStop) {
-    opt <- optimalPSIcutoff(clinical, eventPSI, censoring, event, 
-                            timeStart, timeStop)
-    
-    # Assign splicing quantification to patients based on their samples
-    eventPSI <- as.numeric(eventPSI)
+                                  timeStart, timeStop, match, patients,
+                                  samples) {
+    # Assign a value to patients based on their respective samples
+    eventPSI <- assignValuePerPatient(eventPSI, match, patients=patients,
+                                      samples=samples)
+    opt <- optimalSurvivalCutoff(clinical, eventPSI, censoring, event, 
+                                 timeStart, timeStop)
     
     # Assign a value based on the inclusion levels cutoff
     cutoff <- opt$par
@@ -297,6 +308,7 @@ optimSurvDiffSet <- function(session, input, output) {
             display   <- input$statsTable_rows_current
             filtered  <- input$statsTable_rows_all
             selected  <- input$selected
+            samples   <- getSelectedGroups(input, "sampleFiltering", "Samples")
             # Get clinical data for the required attributes
             followup <- "days_to_last_followup"
             clinical <- getClinicalDataForSurvival(timeStart, timeStop, event,
@@ -330,11 +342,9 @@ optimSurvDiffSet <- function(session, input, output) {
         }
         startProgress("Performing survival analysis", nrow(subset))
         
-        # Assign a value to patients based on their respective samples
-        clinicalPSI <- getValuePerPatient(subset, match, patients=patients)
-        
-        opt <- apply(clinicalPSI, 1, createOptimalSurvData, clinical, 
-                     censoring, event, timeStart, timeStop)
+        opt <- apply(subset, 1, createOptimalSurvData, clinical, censoring, 
+                     event, timeStart, timeStop, match, patients, 
+                     unlist(samples))
         
         if (length(opt) == 0) {
             errorModal(session, "No survival analyses",
@@ -380,9 +390,8 @@ optimSurvDiffSet <- function(session, input, output) {
                                            animation=FALSE, fillOpacity=0.25,
                                            marker=list(radius=1)))
             data <- as.character(df[ , 3])
-            optimSurv[rownames(df), 3] <- createSparklines(hc, data, 
-                                                           rownames(df),
-                                                           "showSurvCutoff")
+            optimSurv[rownames(df), 3] <- createSparklines(
+                hc, data, rownames(df), groups=names(samples), "showSurvCutoff")
             setDifferentialAnalysesResetPaging(FALSE)
             setDifferentialAnalysesSurvival(optimSurv)
         }
@@ -446,6 +455,12 @@ diffAnalysesSet <- function(session, input, output) {
             attrGroups <- "All samples"
             groups <- rep(attrGroups, ncol(psi))
         }
+
+        # Prepare splicing events to analyse
+        ASevents <- getSelectedGroups(input, "diffASevents", "ASevents",
+                                      filter=rownames(psi))
+        if (!is.null(ASevents) ) 
+            psi <- psi[unique(unlist(ASevents)), , drop=FALSE]
         
         stats <- diffAnalyses(psi, groups, statsChoices,
                               pvalueAdjust=pvalueAdjust)
@@ -549,7 +564,8 @@ diffAnalysesPlotSet <- function(session, input, output) {
         observe({
             highlightUI <- function(label, min, max) {
                 highlightId <- ns(paste0(label, "Highlight"))
-                sliderId    <- ns(paste0(label, "Slider"))
+                sliderMinId <- ns(paste0(label, "SliderMin"))
+                sliderMaxId <- ns(paste0(label, "SliderMax"))
                 sliderInvId <- ns(paste0(label, "SliderInv"))
                 
                 # Round max and min numbers with two decimal points
@@ -558,10 +574,13 @@ diffAnalysesPlotSet <- function(session, input, output) {
                 
                 conditionalPanel(
                     sprintf("input[id='%s']", highlightId),
-                    sliderInput(sliderId, "Values to highlight", min=min,
-                                max=max, value=c(min, max), dragRange=TRUE,
-                                step=0.01, round=getPrecision(), sep="",
-                                width="100%"),
+                    fluidRow(
+                        column(6, numericInput(sliderMinId, "Lower limit",
+                                               min=min, value=min, step=0.1,
+                                               width="100%")),
+                        column(6, numericInput(sliderMaxId, "Upper limit",
+                                               max=max, value=max, step=0.1,
+                                               width="100%"))),
                     checkboxInput(sliderInvId, "Invert highlighted values"),
                     helpText("The data in the table is also filtered",
                              "according to highlighted events."))
@@ -676,59 +695,59 @@ diffAnalysesPlotSet <- function(session, input, output) {
         xLabel <- res$xLabel
         yLabel <- res$yLabel
         
-        ggplotServer(input=input, output=output, id="psi-volcano", 
-                     df=stats, x=xLabel, y=yLabel, plot={
-                         if (input$xHighlight) {
-                             highlightX <- input$xSlider
-                             attr(highlightX, "inverted") <- input$xSliderInv
-                         } else {
-                             highlightX <- NULL
-                         }
-                         
-                         if (input$yHighlight) {
-                             highlightY <- input$ySlider
-                             attr(highlightY, "inverted") <- input$ySliderInv
-                         } else {
-                             highlightY <- NULL
-                         }
-                         
-                         # Check selected events
-                         selected <- getSelectedPoints("psi-volcano")
-                         selected <- rownames(filtered)[selected]
-                         selected <- which(rownames(stats) %in% selected)
-                         if (length(selected) < 1) selected <- NULL
-                         
-                         events <- getHighlightedPoints("psi-volcano")
-                         
-                         params <- list(size=input$baseSize, 
-                                        col=input$baseColour,
-                                        alpha=input$baseAlpha)
-                         highlightParams <- list(size=input$highlightedSize,
-                                                 col=input$highlightedColour,
-                                                 alpha=input$highlightedAlpha)
-                         selectedParams  <- list(size=input$selectedSize,
-                                                 col=input$selectedColour,
-                                                 alpha=input$selectedAlpha)
-                         labelledParams  <- list(size=input$labelledSize,
-                                                 col=input$labelledColour,
-                                                 alpha=input$labelledAlpha)
-                         
-                         zoom <- getZoom("psi-volcano")
-                         if (!is.null(zoom)) {
-                             xlim <- c(zoom$xmin, zoom$xmax)
-                             ylim <- c(zoom$ymin, zoom$ymax)
-                         } else {
-                             xlim <- NULL
-                             ylim <- NULL
-                         }
-                         
-                         labelled <- getLabelledPoints("psi-volcano")
-                         createEventPlotting(
-                             stats, xLabel, yLabel, params, 
-                             highlightX, highlightY, highlightParams, 
-                             selected, selectedParams, labelled, labelledParams,
-                             xlim=xlim, ylim=ylim)
-                     })
+        ggplotServer(
+            input=input, output=output, id="psi-volcano", df=stats, x=xLabel, 
+            y=yLabel, plot={
+                diffType <- "psi-volcano"
+                if (input$xHighlight) {
+                    highlightX <- c(input$xSliderMin, input$xSliderMax)
+                    attr(highlightX, "inverted") <- input$xSliderInv
+                } else {
+                    highlightX <- NULL
+                }
+                
+                if (input$yHighlight) {
+                    highlightY <- c(input$ySliderMin, input$ySliderMax)
+                    attr(highlightY, "inverted") <- input$ySliderInv
+                } else {
+                    highlightY <- NULL
+                }
+                
+                # Check selected events
+                selected <- getSelectedPoints(diffType)
+                selected <- rownames(filtered)[selected]
+                selected <- which(rownames(stats) %in% selected)
+                if (length(selected) < 1) selected <- NULL
+                
+                params <- list(size=input$baseSize, col=input$baseColour,
+                               alpha=input$baseAlpha)
+                highlightParams <- list(size=input$highlightedSize,
+                                        col=input$highlightedColour,
+                                        alpha=input$highlightedAlpha)
+                selectedParams  <- list(size=input$selectedSize,
+                                        col=input$selectedColour,
+                                        alpha=input$selectedAlpha)
+                labelledParams  <- list(size=input$labelledSize,
+                                        col=input$labelledColour,
+                                        alpha=input$labelledAlpha)
+                
+                zoom <- getZoom(diffType)
+                if (!is.null(zoom)) {
+                    xlim <- c(zoom$xmin, zoom$xmax)
+                    ylim <- c(zoom$ymin, zoom$ymax)
+                } else {
+                    xlim <- NULL
+                    ylim <- NULL
+                }
+                
+                labelled <- getLabelledPoints(diffType)
+                eventPlot <- createEventPlotting(
+                    stats, xLabel, yLabel, params, highlightX, highlightY, 
+                    highlightParams, selected, selectedParams, labelled, 
+                    labelledParams, xlim=xlim, ylim=ylim)
+                setHighlightedPoints(diffType, eventPlot$highlighted)
+                eventPlot$plot[[1]]
+            })
     })
     
     ggplotAuxServer(input, output, "psi-volcano")
@@ -736,7 +755,7 @@ diffAnalysesPlotSet <- function(session, input, output) {
 
 #' Set of functions to render data table for differential analyses
 #' 
-#' @importFrom DT reloadData dataTableProxy dataTableAjax selectRows
+#' @importFrom DT dataTableProxy selectRows replaceData
 #' @importFrom shinyjs toggleElement toggleState
 #' @importFrom utils write.table
 #' 
@@ -766,7 +785,7 @@ diffAnalysesTableSet <- function(session, input, output) {
                  columnDefs=list(list(targets=5, searchable=FALSE))))
     
     # Update table with filtered information
-    proxy <- dataTableProxy(ns("statsTable"))
+    proxy <- dataTableProxy("statsTable")
     observe({
         stats <- getDifferentialAnalyses()
         
@@ -849,10 +868,8 @@ diffAnalysesTableSet <- function(session, input, output) {
                         as.numeric(signifDigits(stats[ , col])))
                 }
             }
-            
-            dataTableAjax(session, stats, outputId="statsTable")
-            reloadData(proxy, resetPaging=resetPaging)
-            if (!is.null(selected)) selectRows(proxy, selected)
+            replaceData(proxy, stats, resetPaging=resetPaging, 
+                        clearSelection="none")
         }
     })
     
@@ -942,6 +959,10 @@ diffSplicingTableServer <- function(input, output, session) {
     ns <- session$ns
     
     selectGroupsServer(session, "diffGroups", "Samples")
+    selectGroupsServer(session, "diffASevents", "ASevents")
+    selectGroupsServer(session, "sampleFiltering", "Samples",
+                       # Prefer TCGA tumour samples
+                       preference="Primary solid Tumor")
     
     observeEvent(input$loadClinical, 
                  missingDataGuide("Clinical data"))
