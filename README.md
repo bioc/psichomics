@@ -1,17 +1,23 @@
-# psichomics [![Build Status][8]][9] [![AppVeyor Build Status][10]][11] [![codecov][12]][13]
+# psichomics [![Build Status][travisIcon]][travis] [![AppVeyor Build Status][appVeyorIcon]][appVeyor] [![codecov][codecovIcon]][codecov]
+
+> **Original article:**
+>
+> Nuno Saraiva-Agostinho and Nuno L. Barbosa-Morais. 2018. 
+[*psichomics: graphical application for alternative splicing quantification and analysis*][article].
+bioRxiv.
 
 Interactive R package with an intuitive Shiny-based graphical 
 interface for alternative splicing quantification and integrative analyses of
 alternative splicing and gene expression from large transcriptomic datasets, 
-including those from [The Cancer Genome Atlas (TCGA)][1] and 
-[Genotype-Tissue Expression (GTEx) project][13], as well as user-owned data.
+including those from [The Cancer Genome Atlas (TCGA)][TCGA] and 
+[Genotype-Tissue Expression (GTEx) project][GTEx], as well as user-owned data.
 
-The tool interactively performs survival, dimensionality reduction and median- 
-and variance-based differential splicing and gene expression analyses that 
-benefit from the incorporation of clinical and molecular sample-associated 
-features (such as tumour stage or survival). Interactive visual access to 
-genomic mapping and functional annotation of selected alternative splicing 
-events is also included.
+*psichomics* interactively performs survival, dimensionality reduction and 
+median- and variance-based differential splicing and gene expression 
+analyses that benefit from the incorporation of clinical and molecular 
+sample-associated features (such as tumour stage or survival). Interactive
+visual access to genomic mapping and functional annotation of selected 
+alternative splicing events is also included.
 
 ![Screen shot](screenshot.png)
 
@@ -42,8 +48,8 @@ events is also included.
 
 ### Bioconductor release
 
-To install the package from [Bioconductor][2], type the following in 
-[RStudio][4] or in an R console:
+To install the package from [Bioconductor][bioconductor], type the following in 
+[RStudio][rstudio] or in an R console:
 
 ```r
 ## try http:// if https:// URLs are not supported
@@ -55,13 +61,13 @@ biocLite("psichomics")
 
 To install and start using the development version, follow these steps:
 
-1. [Install R][3]
+1. [Install R][r]
 2. Depending on your operative system, install:
     - [Rtools](https://cran.r-project.org/bin/windows/Rtools/) (Windows)
     - [Xcode command-line tools](https://developer.apple.com/downloads) (Mac)
     - **r-devel** or **r-base-dev** (Linux)
-3. Open [RStudio][4] or an R console
-4. Install [Bioconductor][2] with: 
+3. Open [RStudio][rstudio] or an R console
+4. Install [Bioconductor][bioconductor] with: 
     - `source("https://bioconductor.org/biocLite.R")`
 5. Install, load and start the visual interface with:
 ```r
@@ -73,7 +79,8 @@ psichomics()
 
 ## Tutorials
 
-The following tutorials are available:
+The following case studies are available based on our 
+[original article][article] (currently in preprint):
 
 * [Visual interface](http://rpubs.com/nuno-agostinho/psichomics-tutorial-visual)
 * [Command-line interface](http://rpubs.com/nuno-agostinho/psichomics-cli-tutorial)
@@ -86,19 +93,19 @@ Other tutorials coming soon:
 
 ### Download TCGA Data
 
-psichomics allows to download data from the [TCGA][1] after selecting the tumour
-of interest. Subject- and sample-associated information, junction quantification
-and gene expression data from TCGA are supported.
+*psichomics* allows to download data from the [TCGA][TCGA] after selecting the 
+tumour of interest. Subject- and sample-associated information, junction 
+quantification and gene expression data from TCGA are supported.
 
 ### Load GTEx Data
 
-GTEx data needs to be manually downloaded from the [GTEx Portal][13]. Subject- 
+GTEx data needs to be manually downloaded from the [GTEx Portal][GTEx]. Subject- 
 and sample-associated data, junction quantification and gene expression data 
 from GTEx are supported.
 
 ### Load user-provided files
 
-psichomics contains instructions to load user-owned files (including
+*psichomics* contains instructions on how to load user-owned files (including
 subject-associated data, sample-associated data, junction quantification,
 alternative splicing quantification and gene expression).
 
@@ -106,7 +113,7 @@ alternative splicing quantification and gene expression).
 
 The quantification of each alternative splicing event is based on the proportion
 of junction reads that support the inclusion isoform, known as percent 
-spliced-in or PSI [(Wang *et al.*, 2008)](#references).
+spliced-in or PSI [(Wang *et al.*, 2008)][Wang2008].
 
 An estimate of this value is obtained based on the the proportion of reads 
 supporting the inclusion of an exon over the reads supporting both the inclusion
@@ -114,7 +121,8 @@ and exclusion of that exon. To measure this estimate, both alternative splicing
 annotation and the quantification of RNA-Seq reads aligning to splice junctions
 (junction quantification) are required. While alternative splicing Human (hg19
 assembly) annotation is provided by the package, junction quantification may be
-retrieved from [TCGA][1] (automatically) or from [GTEx][14] (manually).
+retrieved from [TCGA][TCGA] (automatically) or from [GTEx][GTEx] (manually) or 
+handed by the user (e.g. user-owned files).
 
 ## Gene expression processing
 
@@ -135,9 +143,10 @@ and clinical sample-associated attributes.
 
 ### Differential splicing and gene expression analysis
 
-Analyse alternative splicing quantification based on variance and median 
-statistical tests. The groups available for differential analysis comprise 
-molecular and clinical sample-associated features.
+Analyse alternative splicing quantification (based on variance and median 
+statistical tests) and gene expression data. The groups available for 
+differential analyses comprise sample types (e.g. normal versus tumour)
+and clinical attributes of patients (e.g. tumour stage).
 
 ### Survival analysis
 
@@ -158,7 +167,7 @@ alternative splicing quantification of selected alternative splicing events.
 ## Data grouping
 
 Subject- and sample-associated data allow to establish groups that can be 
-exploited in diverse analyses throughout psichomics.
+exploited in diverse analyses throughout *psichomics*.
 
 - **By attribute:** automatically create groups by selecting a specific
 attribute of the dataset; for instance, to create a group for each tumour stage,
@@ -172,41 +181,42 @@ expressions
 attribute
 
 Groups can also be selected in order to be manipulated (e.g. merged, 
-intersected, etc.), removed or renamed.
+intersected, etc.), re-coloured, removed or renamed.
 
 ## Feedback
 
 All feedback on the program, documentation and associated material is welcome. 
-Please, send any suggestions and comments to the following contact:
+Please send any suggestions and comments to:
 
-> Nuno Saraiva-Agostinho (nunodanielagostinho@gmail.com)
-
-> [Nuno Morais Lab, Instituto de Medicina Molecular][5]
+> Nuno Saraiva-Agostinho (nunoagostinho@medicina.ulisboa.pt)
+> 
+> [Disease Transcriptomics Lab, Instituto de Medicina Molecular (Portugal)][NMorais]
 
 ## Contributions
 
 Please note that this project is released with a 
-[Contributor Code of Conduct][6]. By participating in this project you agree to
-abide by its terms.
+[Contributor Code of Conduct][conduct]. By participating in this project you 
+agree to abide by its terms.
 
 ## References
 
 Wang, E. T., R. Sandberg, S. Luo, I. Khrebtukova, L. Zhang, C. Mayr, S. F. 
 Kingsmore, G. P. Schroth, and C. B. Burge. 2008. 
-[*Alternative isoform regulation in human tissue transcriptomes.*][7] Nature 456
-(7221): 470–76.
+[*Alternative isoform regulation in human tissue transcriptomes.*][Wang2008] 
+Nature 456 (7221): 470–76.
 
-[1]: https://tcga-data.nci.nih.gov
-[2]: https://www.bioconductor.org
-[3]: https://www.r-project.org
-[4]: https://www.rstudio.com/products/rstudio
-[5]: http://imm.medicina.ulisboa.pt/group/compbio
-[6]: CONDUCT.md
-[7]: http://www.nature.com/nature/journal/v456/n7221/full/nature07509.html
-[8]: https://travis-ci.org/nuno-agostinho/psichomics.svg?branch=master
-[9]: https://travis-ci.org/nuno-agostinho/psichomics
-[10]: https://ci.appveyor.com/api/projects/status/github/nuno-agostinho/psichomics?branch=master&svg=true
-[11]: https://ci.appveyor.com/project/nuno-agostinho/psichomics
-[12]: https://codecov.io/gh/nuno-agostinho/psichomics/branch/master/graph/badge.svg
-[13]: https://codecov.io/gh/nuno-agostinho/psichomics
-[14]: http://www.gtexportal.org
+[TCGA]: https://tcga-data.nci.nih.gov
+[bioconductor]: https://www.bioconductor.org
+[r]: https://www.r-project.org
+[rstudio]: https://www.rstudio.com/products/rstudio
+[NMorais]: http://imm.medicina.ulisboa.pt/group/distrans/
+[conduct]: CONDUCT.md
+[Wang2008]: http://www.nature.com/nature/journal/v456/n7221/full/nature07509.html
+[travisIcon]: https://travis-ci.org/nuno-agostinho/psichomics.svg?branch=master
+[travis]: https://travis-ci.org/nuno-agostinho/psichomics
+[appVeyorIcon]: https://ci.appveyor.com/api/projects/status/github/nuno-agostinho/psichomics?branch=master&svg=true
+[appVeyor]: https://ci.appveyor.com/project/nuno-agostinho/psichomics
+[codecovIcon]: https://codecov.io/gh/nuno-agostinho/psichomics/branch/master/graph/badge.svg
+[codecov]: https://codecov.io/gh/nuno-agostinho/psichomics
+[GTEx]: http://www.gtexportal.org
+[article]: https://doi.org/10.1101/261180
