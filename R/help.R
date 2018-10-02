@@ -99,7 +99,7 @@ helpUI <- function(id, tab) {
                         tags$a(href="https://www.gtexportal.org/home/",
                                target="_blank",
                                "Genotype-Tissue Expression (GTEx)"),
-                        "project, as well as user-owned data."),
+                        "project, as well as user-provided data."),
                     tags$ul(
                         class="list-group",
                         tags$li(class="list-group-item",
@@ -143,7 +143,7 @@ helpServer <- function(input, output, session) {
         setPrecision(input$precision)
         output$precisionExample <- renderText(
             paste("Example:",
-                  formatC(283.5837243243332313139838387437323823823829,
+                  formatC(283.5837243243,
                           digits=getPrecision(), format="f")))
     })
     
@@ -151,7 +151,7 @@ helpServer <- function(input, output, session) {
         setSignificant(input$significant)
         output$significantExample <- renderText(
             paste("Example:", 
-                  formatC(0.000005849839043444982905434543482092830943,
+                  formatC(5.849371935e-06,
                           getSignificant(), format="g")))
     })
 }

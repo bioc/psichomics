@@ -50,3 +50,31 @@ test_that("Correlate gene expression and AS quantification with NAs", {
     expect_length(plotCorrelation(corr), 1)
 })
 
+test_that("Correctly match genes based on TCGA-styled gene expression", {
+    # Test using a mixed of partial and full matching genes
+    gene <- c("A1K|423", "BDK3|567", "BDA1KL", "MHN|2120", "MHNOR", "XHR|12442")
+    subset <- subsetGeneExpressionFromMatchingGenes(geneExpr, gene)
+    expect_equal(rownames(subset),
+                 c("A1K|423", "BDK3|567", "BDA1KL|754", "MHN|2120", 
+                   "MHNOR|2134", "XHR|12442"))
+    
+    # Test with only TCGA-styled genes (full match)
+    gene <- c("A1K|423", "BDK3|567", "MHN|2120", "XHR|12442")
+    subset <- subsetGeneExpressionFromMatchingGenes(geneExpr, gene)
+    expect_equal(rownames(subset), 
+                 c("A1K|423", "BDK3|567", "MHN|2120", "XHR|12442"))
+    
+    # Test with only non-TCGA-styled genes (partial match)
+    gene <- c("BDA1KL", "MHNOR")
+    subset <- subsetGeneExpressionFromMatchingGenes(geneExpr, gene)
+    expect_equal(rownames(subset), c("BDA1KL|754", "MHNOR|2134"))
+    
+    # Test with non-matching genes
+    gene   <- c("SOMESPAM", "A1K|423", "BDK3", "MORESPAM", "MHN", "SPAMSPAM")
+    subset <- subsetGeneExpressionFromMatchingGenes(geneExpr, gene)
+    expect_equal(rownames(subset), c("A1K|423", "BDK3|567", "MHN|2120"))
+    
+    # Test with only non-matching genes
+    gene <- c("ALLSPAM", "SPAMSAMPLE", "SOMEMORESPAM")
+    expect_error(subsetGeneExpressionFromMatchingGenes(geneExpr, gene))
+})

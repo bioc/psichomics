@@ -493,7 +493,7 @@ loadFirebrowseData <- function(folder=NULL, data=NULL,
         if (download) {
             # Download missing files
             updateProgress(divisions = 1)
-            display("Triggered the download of files")
+            display("Downloading files...")
             
             if (identical(getOption("download.file.method"), "libcurl")) {
                 dl <- download.file(missingFiles, destfile=file.path(
@@ -520,9 +520,9 @@ loadFirebrowseData <- function(folder=NULL, data=NULL,
     folders <- base[!md5]
     folders <- split(folders, categories)
     
-    # Check if there are folders to unarchive
-    archives <- unlist(lapply(possibleExtensions, function (i)
-        i[i %in% basename(downloadedFiles[!downloadedMD5])]))
+    # Check for folders to unarchive
+    archives <- unlist(lapply(possibleExtensions, function (item)
+        item[item %in% basename(downloadedFiles[!downloadedMD5])]))
     tar <- grepl(".tar", archives, fixed = TRUE)
     
     if (length(archives[tar]) > 0) {
@@ -534,7 +534,7 @@ loadFirebrowseData <- function(folder=NULL, data=NULL,
         updateProgress("Archives prepared")
     } else {
         # Set the progress bar to the number of folders to load
-        updateProgress("Loading data", divisions = length(folders))   
+        updateProgress("Loading data...", divisions = length(folders))   
     }
     
     # Get the full path of the files
@@ -624,7 +624,7 @@ firebrowseUI <- function(id, panel) {
                      "Firebrowse"), "API."),
           div(id=ns("firebrowseLoading"), class="progress",
               div(class="progress-bar progress-bar-striped active",
-                  role="progressbar", style="width: 100%", "Loading")),
+                  role="progressbar", style="width: 100%", "Loading...")),
           uiOutput(ns("checkFirebrowse")))
 }
 
@@ -641,9 +641,9 @@ firebrowseUI <- function(id, panel) {
 #' 
 #' @return HTML elements
 checkFirebrowse <- function(ns) {
-    startProgress("Checking Firebrowse API", 1)
+    startProgress("Checking Firebrowse API to retrieve TCGA data...", 1)
     if (isFirebrowseUp()) {
-        updateProgress("Loading interface")
+        updateProgress("Loading Firebrowse interface...")
         ui <- addTCGAdata(ns)
     } else {
         ui <- errorDialog("Firebrowse API appears to be offline at the moment.",
@@ -664,7 +664,7 @@ checkFirebrowse <- function(ns) {
 #' @param replace Boolean: replace loaded data? TRUE by default
 #' 
 #' @importFrom shinyjs disable enable
-#' @importFrom shiny div fluidRow column icon
+#' @importFrom shiny div fluidRow column icon tags
 #' @importFrom shinyBS bsTooltip
 #' 
 #' @return NULL (this function is used to modify the Shiny session's state)
@@ -678,30 +678,27 @@ setFirebrowseData <- function(input, output, session, replace=TRUE) {
                                date = gsub("-", "_", input$firebrowseDate),
                                data = input$firebrowseData, download = FALSE)
     
-    if (any(class(data) == "missing")) {
+    areDataMissing <- any(class(data) == "missing")
+    if (areDataMissing) {
         updateProgress(divisions = 1)
         setURLtoDownload(data)
         
         infoModal(
-            session, "Download requested data",
-            "The requested data will be downloaded. When the downloads",
-            "finish, click the button", tags$b("Load data"), 
-            "again to process and load the downloaded data.", br(), br(), 
-            tags$div(
+            session, "Confirm data download",
+            "Do you wish to download the selected TCGA data? When the",
+            "downloads finish, click", tags$b("Load data"), "with the exact",
+            "same options to automatically load the data into", 
+            tags$i("psichomics."), tags$br(), tags$br(), tags$div(
                 class="alert", class="alert-warning", role="alert",
-                fluidRow(style="display: flex; align-items: center;", column(
-                    10, "Confirm that files will be downloaded to the folder",
-                    tags$b(input$dataFolder)),
-                    column(2, tags$i(class="fa fa-question-circle", 
-                                     id=ns("helpDownloadFolder"))))),
-            bsTooltip(ns("helpDownloadFolder"), placement="right",
-                      paste("This program checks for files in the given",
-                            "folder. You can either:<br/>\u2022 Change the",
-                            "folder where the downloaded items are located",
-                            "<br/>\u2022 Move the downloaded items to the",
-                            "given folder"),
-                      options=list(container="body")),
-            modalId="firebrowseDataModal",
+                tags$i("psichomics"), "will check for downloaded files in",
+                tags$br(), tags$kbd(prepareWordBreak(input$dataFolder)),
+                if (isRStudioServer())
+                    tagList(
+                        tags$br(), tags$br(), icon("exclamation-circle"),
+                        "Running", tags$i("psichomics"), "in a remote server?",
+                        "Please make sure to move the files from your computer",
+                        "to the aforementioned server's folder.")),
+            modalId="firebrowseDataModal", caller="Load TCGA data",
             footer=actionButton(ns("acceptDownload"), "Download data",
                                 class="btn-primary", "data-dismiss"="modal"))
     } else if (!is.null(data)) {
@@ -712,7 +709,7 @@ setFirebrowseData <- function(input, output, session, replace=TRUE) {
             setData(data)
         }
     }
-    endProcess("getFirebrowseData", time)
+    endProcess("getFirebrowseData", if (!areDataMissing) time)
 }
 
 #' @rdname appServer
@@ -732,21 +729,24 @@ firebrowseServer <- function(input, output, session) {
     # Check if data is already loaded and ask the user if it should be replaced
     observeEvent(input$getFirebrowseData, {
         if (length(isolate(input$firebrowseCohort)) == 0) {
-            errorModal(session, "No tumour type",
-                       "Please, input a tumour type.", 
-                       modalId="firebrowseDataModal")
+            errorModal(session, "No tumour type selected",
+                       "Please, input a tumour type.",
+                       caller="Load TCGA data", modalId="firebrowseDataModal")
         } else if (length(isolate(input$firebrowseDate)) == 0) {
-            errorModal(session, "No date",
+            errorModal(session, "No date selected",
                        "Please, input date of samples of interest.",
-                       modalId="firebrowseDataModal")
+                       caller="Load TCGA data", modalId="firebrowseDataModal")
         } else if (length(isolate(input$firebrowseData)) == 0) {
-            errorModal(session, "No data types",
+            errorModal(session, "No data types select",
                        "Please, input data types of interest.",
-                       modalId="firebrowseDataModal")
+                       caller="Load TCGA data", modalId="firebrowseDataModal")
+        } else if (!dir.exists(input$dataFolder)) {
+            errorModal(
+                session, "Folder not found", "The selected folder", 
+                tags$kbd(prepareWordBreak(input$dataFolder)), "was not found.",
+                caller="Load TCGA data", modalId="firebrowseDataModal")
         } else if (!is.null(getData())) {
-            loadedDataModal(session,
-                            "firebrowseDataModal",
-                            "firebrowseReplace",
+            loadedDataModal(session, "firebrowseDataModal", "firebrowseReplace",
                             "firebrowseAppend")
         } else {
             setFirebrowseData(input, output, session)

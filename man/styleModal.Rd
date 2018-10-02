@@ -9,13 +9,16 @@
 \usage{
 styleModal(session, title, ..., style = NULL,
   iconName = "exclamation-circle", footer = NULL, echo = FALSE,
-  size = "medium", dismissButton = TRUE)
+  size = "medium", dismissButton = TRUE, caller = NULL)
 
-errorModal(session, title, ..., size = "small", footer = NULL)
+errorModal(session, title, ..., size = "small", footer = NULL,
+  caller = NULL)
 
-warningModal(session, title, ..., size = "small", footer = NULL)
+warningModal(session, title, ..., size = "small", footer = NULL,
+  caller = NULL)
 
-infoModal(session, title, ..., size = "small", footer = NULL)
+infoModal(session, title, ..., size = "small", footer = NULL,
+  caller = NULL)
 }
 \arguments{
 \item{session}{Current Shiny session}
@@ -37,6 +40,9 @@ infoModal(session, title, ..., size = "small", footer = NULL)
 "large"}
 
 \item{dismissButton}{Boolean: show dismiss button in footer? TRUE by default}
+
+\item{caller}{Character: label to identify the module calling for the modal 
+(relevant for error and warning modals)}
 }
 \value{
 NULL (this function is used to modify the Shiny session's state)

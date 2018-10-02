@@ -9,7 +9,7 @@ Original code by wleepang:
 }
 \usage{
 fileBrowser(default = NULL, caption = NULL, multiple = FALSE,
-  directory = FALSE, system = Sys.info()["sysname"])
+  directory = FALSE)
 }
 \arguments{
 \item{default}{Character: path to initial folder}
@@ -19,8 +19,6 @@ fileBrowser(default = NULL, caption = NULL, multiple = FALSE,
 \item{multiple}{Boolean: allow to select multiple files?}
 
 \item{directory}{Boolean: allow to select directories instead of files?}
-
-\item{system}{Character: system name}
 }
 \value{
 A length one character vector, character NA if 'Cancel' was selected.
@@ -29,10 +27,16 @@ A length one character vector, character NA if 'Cancel' was selected.
 Interactive folder selection using a native dialogue
 }
 \details{
-For macOS, it uses an Apple Script to display a folder selection dialogue. 
-With \code{default = NA}, the initial folder selection is determined by 
-default behaviour of the "choose folder" Apple Script command.  Otherwise, 
-paths are expanded with \link{path.expand}.
+Pltaform-dependent implementation:
+\itemize{
+ \item{\strong{Windows}: calls the \code{utils::choose.files} R function.}
+ \item{\strong{macOS}: uses AppleScript to display a folder selection 
+ dialogue. If \code{default} is \code{NA}, folder selection fallbacks to the
+ default behaviour of the \code{choose folder} AppleScript command.
+ Otherwise, paths are expanded with \code{\link{path.expand}}.}
+ \item{\strong{Linux}: calls the \code{zenity} system command.}
+}
 
-In Windows, it uses either `utils::choose.files` or `utils::choose.dir`.
+If for some reason an error occurs (e.g. when using a remote server), the
+dialog fallbacks to an alternative, non-native file browser.
 }
