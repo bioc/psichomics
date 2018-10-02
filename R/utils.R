@@ -23,6 +23,17 @@ insideFile <- function(...) {
     return(system.file(..., package="psichomics"))
 }
 
+#' Check if files exist 
+#'
+#' @param files Character: vector of filepaths to check
+#'
+#' @return Boolean vector stating whether each file exists or not
+isFile <- function(files) {
+    fileExists <- file.exists(files) & !dir.exists(files)
+    names(fileExists) <- files
+    return(fileExists)
+}
+
 #' Sidebar without a well
 #' 
 #' Modified version of \code{shiny::sidebarPanel} without a well
@@ -67,6 +78,18 @@ tableRow <- function (..., th=FALSE) {
     if (th) row <- tags$th
     else    row <- tags$td
     do.call(tags$tr, lapply(args, row))
+}
+
+#' Modified colour input with 100\% width
+#' 
+#' @inheritDotParams colourpicker::colourInput
+#' @importFrom colourpicker colourInput
+#' 
+#' @return HTML elements
+colourInputMod <- function(...) {
+    colourSelector <- colourInput(...)
+    colourSelector[[2]][["style"]] <- "width: 100%;"
+    return(colourSelector)
 }
 
 #' Splicing event types available
@@ -307,6 +330,22 @@ trimWhitespace <- function(word) {
     return(word)
 }
 
+#' Create word break opportunities (for HTML) using given characters
+#' 
+#' @param str Character: text
+#' @param pattern Character: pattern(s) of interest to be used as word break
+#' opportunities
+#' 
+#' @importFrom shiny HTML
+#' 
+#' @return String containing HTML elements
+prepareWordBreak <- function(str, pattern=c(".", "-", "\\", "/", "_")) {
+    res <- str
+    # wbr: word break opportunity
+    for (p in pattern) res <- gsub(p, paste0(p, "<wbr>"), res, fixed=TRUE)
+    return(HTML(res))
+}
+
 #' Filter NULL elements from vector or list
 #' 
 #' @param v Vector or list
@@ -533,7 +572,7 @@ getPatientFromSample <- function(sampleId, patientId=NULL, na=FALSE,
         # Retrieve GTEx patient index
         extractPatientIndex("(GTEX-.*?)-.*", sampleId, patientId)
     } else if ( "Subject ID" %in% colnames(sampleInfo) ) {
-        # Based on user-owned files
+        # Based on user-provided files
         patients <- as.character(sampleInfo[ , "Subject ID"])
         names(patients) <- rownames(sampleInfo)
         return(patients)
@@ -692,14 +731,18 @@ loadRequiredData <- function( modal=NULL ) {
 #' @param size Character: size of the modal - "medium" (default), "small" or 
 #' "large"
 #' @param dismissButton Boolean: show dismiss button in footer? TRUE by default
+#' @param caller Character: label to identify the module calling for the modal 
+#' (relevant for error and warning modals)
 #' 
 #' @importFrom shiny renderUI div icon showModal modalButton modalDialog
 #' @importFrom shinyBS toggleModal
+#' @importFrom R.utils capitalize
+#' 
 #' @seealso \code{\link{showAlert}}
 #' @return NULL (this function is used to modify the Shiny session's state)
 styleModal <- function(session, title, ..., style=NULL,
                        iconName="exclamation-circle", footer=NULL, echo=FALSE, 
-                       size="medium", dismissButton=TRUE) {
+                       size="medium", dismissButton=TRUE, caller=NULL) {
     
     size <- switch(size, "small"="s", "large"="l", "medium"="m")
     if (dismissButton) footer <- tagList(modalButton("Dismiss"), footer)
@@ -713,25 +756,34 @@ styleModal <- function(session, title, ..., style=NULL,
                                 class=style)
     }
     showModal(modal, session)
-    if (echo) display(content)
+    if (echo) {
+        if (style == "info") style <- "Information"
+        msg <- sprintf("%s: %s", capitalize(style), title)
+        if (!is.null(caller)) msg <- sprintf('%s (in "%s")', msg, caller)
+        message(msg)
+    }
+    return(invisible(TRUE))
 }
 
 #' @rdname styleModal
-errorModal <- function(session, title, ..., size="small", footer=NULL) {
+errorModal <- function(session, title, ..., size="small", footer=NULL, 
+                       caller=NULL) {
     styleModal(session, title, ..., footer=footer, style="error", size=size,
-               echo=FALSE, iconName="times-circle")
+               echo=TRUE, iconName="times-circle", caller=caller)
 }
 
 #' @rdname styleModal
-warningModal <- function(session, title, ..., size="small", footer=NULL) {
+warningModal <- function(session, title, ..., size="small", footer=NULL,
+                         caller=NULL) {
     styleModal(session, title, ..., footer=footer, style="warning", size=size,
-               echo=FALSE, iconName="exclamation-circle")
+               echo=TRUE, iconName="exclamation-circle", caller=caller)
 }
 
 #' @rdname styleModal
-infoModal <- function(session, title, ..., size="small", footer=NULL) {
+infoModal <- function(session, title, ..., size="small", footer=NULL,
+                      caller=NULL) {
     styleModal(session, title, ..., footer=footer, style="info", size=size,
-               echo=FALSE, iconName="info-circle")
+               echo=TRUE, iconName="info-circle", caller=caller)
 }
 
 #' Show or remove an alert
@@ -927,8 +979,8 @@ startProgress <- function(message, divisions,
 #' @importFrom utils setTxtProgressBar
 #' 
 #' @return NULL (this function is used to modify the Shiny session's state)
-updateProgress <- function(message="Loading", value=NULL, max=NULL, detail=NULL,
-                           divisions=NULL, 
+updateProgress <- function(message="Loading...", value=NULL, max=NULL, 
+                           detail=NULL, divisions=NULL, 
                            global=if (isRunning()) sharedData else getHidden(),
                            console=TRUE) {
     if (!interactive()) return(NULL)
@@ -939,7 +991,7 @@ updateProgress <- function(message="Loading", value=NULL, max=NULL, detail=NULL,
             startProgress(message, divisions, global)
         return(NULL)
     }
-
+    
     divisions <- global$progress.divisions
     if (is.null(value)) {
         if (!isRunning()) { # CLI version
@@ -952,7 +1004,7 @@ updateProgress <- function(message="Loading", value=NULL, max=NULL, detail=NULL,
         value <- currentValue + (max - currentValue)
     }
     amount <- ifelse(is.null(max), value/divisions, 1/max/divisions)
-
+    
     # Print message to console
     if (console) {
         if (!is.null(detail) && !identical(detail, ""))
@@ -960,7 +1012,7 @@ updateProgress <- function(message="Loading", value=NULL, max=NULL, detail=NULL,
         else
             display(message)
     }
-
+    
     # Increment progress
     if (!isRunning()) { # CLI version
         if (!is.null(global)) {
@@ -1104,21 +1156,21 @@ textSuggestions <- function(id, words, novalue="No matching value", char=" ") {
     var <- paste0(varId, ' = ["', paste(words, collapse = '", "'), '"];')
     
     js <- paste0('$("#', escape(id), '").textcomplete([{
-                 match: /([a-zA-Z0-9_\\.]{1,})$/,
-                 search: function(term, callback) {
-                 var words = ', varId, ', sorted = [];
-                 for (i = 0; i < words.length; i++) {
-                 sorted[i] = fuzzy(words[i], term);
-                 }
-                 sorted.sort(fuzzy.matchComparator);
-                 sorted = sorted.map(function(i) { return i.term; });
-                 callback(sorted);
-                 },
-                 index: 1,
-                 cache: true,
-                 replace: function(word) {
-                 return word + "', char ,'";
-                 }}], { noResultsMessage: "', novalue, '"});')
+            match: /([a-zA-Z0-9_\\.]{1,})$/,
+            search: function(term, callback) {
+                var words = ', varId, ', sorted = [];
+                for (i = 0; i < words.length; i++) { 
+                    sorted[i] = fuzzy(words[i], term);
+                }
+                sorted.sort(fuzzy.matchComparator);
+                sorted = sorted.map(function(i) { return i.term; });
+                callback(sorted);
+            }, 
+            index: 1,
+            cache: true,
+            replace: function(word) {
+            return word + "', char ,'";
+        }}], { noResultsMessage: "', novalue, '"});')
     js <- HTML("<script>", var, js, "</script>")
     return(js)
 }
@@ -1356,28 +1408,26 @@ export_highcharts <- function(hc, fill="transparent", text="Export") {
     export <- list(
         list(text="PNG image",
              onclick=JS("function () { 
-                            this.exportChart({ type: 'image/png' }); }")),
+                        this.exportChart({ type: 'image/png' }); }")),
         list(text="JPEG image",
              onclick=JS("function () { 
-                            this.exportChart({ type: 'image/jpeg' }); }")),
+                        this.exportChart({ type: 'image/jpeg' }); }")),
         list(text="SVG vector image",
              onclick=JS("function () { 
-                            this.exportChart({ type: 'image/svg+xml' }); }")),
+                        this.exportChart({ type: 'image/svg+xml' }); }")),
         list(text="PDF document",
              onclick=JS("function () { 
-                            this.exportChart({ type: 'application/pdf' }); }")),
+                        this.exportChart({ type: 'application/pdf' }); }")),
         list(separator=TRUE),
         list(text="CSV document",
              onclick=JS("function () { this.downloadCSV(); }")),
         list(text="XLS document",
-             onclick=JS("function () { this.downloadXLS(); }"))
-    )
+             onclick=JS("function () { this.downloadXLS(); }")))
     
-    hc_exporting(hc, enabled=TRUE,
-                 formAttributes=list(target="_blank"),
-                 buttons=list(contextButton=list(
-                     text=text, theme=list(fill=fill),
-                     menuItems=export)))
+    hc_exporting(hc, enabled=TRUE, formAttributes=list(target="_blank"),
+                 buttons=list(contextButton=list(text=text, 
+                                                 theme=list(fill=fill),
+                                                 menuItems=export)))
 }
 
 #' Create scatter plot
@@ -1459,9 +1509,16 @@ setOperationIcon <- function (name, class=NULL, ...) {
     return(iconTag)
 }
 
+#' Check if running in RStudio Server
+#' 
+#' @return Boolean stating whether running in RStudio Server
+isRStudioServer <- function() {
+    tryCatch(
+        rstudioapi::isAvailable() && rstudioapi::versionInfo()$mode == "server",
+        error=function(i) FALSE)
+}
 
 # File browser dialog -----------------------------------------------------
-
 
 #' Interactive folder selection using a native dialogue
 #'
@@ -1469,31 +1526,40 @@ setOperationIcon <- function (name, class=NULL, ...) {
 #' @param caption Character: caption on the selection dialogue
 #' @param multiple Boolean: allow to select multiple files?
 #' @param directory Boolean: allow to select directories instead of files?
-#' @param system Character: system name
 #'
 #' @details
-#' For macOS, it uses an Apple Script to display a folder selection dialogue. 
-#' With \code{default = NA}, the initial folder selection is determined by 
-#' default behaviour of the "choose folder" Apple Script command.  Otherwise, 
-#' paths are expanded with \link{path.expand}.
-#'
-#' In Windows, it uses either `utils::choose.files` or `utils::choose.dir`.
+#' Pltaform-dependent implementation:
+#' \itemize{
+#'  \item{\strong{Windows}: calls the \code{utils::choose.files} R function.}
+#'  \item{\strong{macOS}: uses AppleScript to display a folder selection 
+#'  dialogue. If \code{default} is \code{NA}, folder selection fallbacks to the
+#'  default behaviour of the \code{choose folder} AppleScript command.
+#'  Otherwise, paths are expanded with \code{\link{path.expand}}.}
+#'  \item{\strong{Linux}: calls the \code{zenity} system command.}
+#' }
+#' 
+#' If for some reason an error occurs (e.g. when using a remote server), the
+#' dialog fallbacks to an alternative, non-native file browser.
 #'
 #' @source Original code by wleepang:
 #' \url{https://github.com/wleepang/shiny-directory-input}
-#'
+#' 
 #' @return A length one character vector, character NA if 'Cancel' was selected.
 fileBrowser <- function(default=NULL, caption=NULL, multiple=FALSE,
-                        directory=FALSE, system=Sys.info()['sysname']) {
-    if (system == 'Darwin') {
+                        directory=FALSE) {
+    system <- Sys.info()['sysname']
+    if (is.null(system)) {
+        stop("File browser is unsupported in this system")
+    } else if (isRStudioServer()) {
+        stop("File browser is currently unsupported for RStudio Server")
+    } else if (system == 'Darwin') {
         directory <- ifelse(directory, "folder", "file")
         multiple  <- ifelse(multiple, "with multiple selections allowed", "")
         
-        if (!is.null(caption) && nzchar(caption)) {
+        if (!is.null(caption) && nzchar(caption))
             prompt <- sprintf("with prompt \\\"%s\\\"", caption)
-        } else {
+        else
             prompt <- ""
-        }
         
         # Default location
         if (!is.null(default) && nzchar(default)) {
@@ -1507,46 +1573,31 @@ fileBrowser <- function(default=NULL, caption=NULL, multiple=FALSE,
         args <- '-e "tell app (%s) to POSIX path of (choose %s %s %s %s)"'
         args <- sprintf(args, app, directory, multiple, prompt, default)
         
-        suppressWarnings({
-            path <- system2("osascript", args=args, stderr=TRUE)
-        })
+        path <- suppressWarnings(system2("osascript", args=args, stderr=TRUE))
         
-        # Return NA if user cancels the action
-        if (!is.null(attr(path, "status")) && attr(path, "status")) {
-            # user canceled
-            return(NA)
-        }
+        # Return NA if the user cancels the action
+        if (!is.null(attr(path, "status")) && attr(path, "status")) return(NA)
     } else if (system == 'Linux') {
         directory <- ifelse(directory, "--directory", "")
-        multiple  <- ifelse(multiple, "--multiple", "")
+        multiple  <- ifelse(multiple,  "--multiple", "")
         
-        if (!is.null(caption) && nzchar(caption)) {
+        prompt <- ""
+        if (!is.null(caption) && nzchar(caption))
             prompt <- sprintf("--title='%s'", caption)
-        } else {
-            prompt <- ""
-        }
         
         args <- " --file-selection %s %s %s"
         args <- sprintf(args, directory, multiple, prompt)
-        
-        suppressWarnings({
-            path <- system2("zenity", args=args, stderr=TRUE)
-        })
+        path <- suppressWarnings(system2("zenity", args=args, stderr=TRUE))
         
         # Return NA if user cancels the action
-        if (!is.null(attr(path, "status")) && attr(path, "status")) {
-            return(NA) # Cancelled by user
-        }
+        if (!is.null(attr(path, "status")) && attr(path, "status")) return(NA) 
+        
         # Error: Gtk-Message: GtkDialog mapped without a transient parent
         if(length(path) == 2) path <- path[2]
     } else if (system == "Windows") {
         if (is.null(default)) default <- ""
         if (is.null(caption)) caption <- ""
-        
-        if (directory)
-            path <- utils::choose.dir(default, caption)
-        else
-            path <- utils::choose.files(default, caption, multiple)
+        path <- utils::choose.files(default, caption, !directory && multiple)
     }
     
     if (identical(path, "")) path <- NULL
@@ -1585,8 +1636,7 @@ fileBrowser <- function(default=NULL, caption=NULL, multiple=FALSE,
 #' @source Original code by wleepang:
 #' \url{https://github.com/wleepang/shiny-directory-input}
 #'
-#' @return
-#' A file browser input control that can be added to a UI definition.
+#' @return HTML elements for a file browser input
 #'
 #' @seealso
 #' \code{\link{updateFileBrowserInput}} and \code{\link{prepareFileBrowser}}
@@ -1616,29 +1666,30 @@ fileBrowserInput <- function(id, label, value=NULL, placeholder=NULL,
     infoTitle   <- gsub("\n", "", as.character(infoTitle),   fixed=TRUE)
     infoContent <- gsub("\n", "", as.character(infoContent), fixed=TRUE)
     if (identical(infoFUN, bsPopover)) {
-        showInfo <- infoFUN(
-            infoId, placement=infoPlacement, options=list(container="body"), 
-            title=infoTitle, content=infoContent)
+        showInfo <- infoFUN(infoId, placement=infoPlacement, 
+                            options=list(container="body"), 
+                            title=infoTitle, content=infoContent)
     } else if (identical(infoFUN, bsTooltip)) {
-        showInfo <- infoFUN(
-            infoId, placement=infoPlacement, options=list(container="body"), 
-            title=infoTitle)
+        showInfo <- infoFUN(infoId, placement=infoPlacement, 
+                            options=list(container="body"), title=infoTitle)
     } else {
         showInfo <- NULL
     }
+    
+    fileBrowserButton <- div(class="btn btn-default fileBrowser-input",
+                             id=sprintf("%sButton", id), 'Browse...')
+    if (isRStudioServer()) fileBrowserButton <- disabled(fileBrowserButton)
+    fileBrowserButton <- div(class="input-group-btn", fileBrowserButton)
+    filepathInput <- tags$input(
+        id=id, value=value, type='text', placeholder=placeholder,
+        readonly = if (!isRStudioServer()) 'readonly' else NULL,
+        class='form-control fileBrowser-input-chosen-dir')
     
     tagList(
         div(class='form-group fileBrowser-input-container',
             check(label, tags$label(label)),
             div(class='input-group shiny-input-container', style='width:100%;',
-                div(class="input-group-btn",
-                    div(class="btn btn-default fileBrowser-input",
-                        id=sprintf("%sButton", id), 'Browse...')),
-                tags$input(
-                    id=id, value=value, type='text', readonly='readonly',
-                    placeholder=placeholder,
-                    class='form-control fileBrowser-input-chosen-dir'),
-                infoElem)),
+                fileBrowserButton, filepathInput, infoElem)),
         showInfo)
 }
 
@@ -1674,17 +1725,30 @@ updateFileBrowserInput <- function(session, id, ..., value=NULL) {
 #' @param input Shiny input
 #' @param id Character: input identifier
 #' @inheritDotParams fileBrowser
+#' @param modalId Character: modal window identifier
 #'
 #' @return NULL (this function is used to modify the Shiny session's state)
-prepareFileBrowser <- function(session, input, id, ...) {
+prepareFileBrowser <- function(session, input, id, modalId="modal", ...) {
     buttonId <- sprintf("%sButton", id)
     observeEvent(input[[buttonId]], {
         if (input[[buttonId]] > 0) { # Prevent execution on initial launch
-            updateFileBrowserInput(session, id, ...)
+            errorTitle <- NULL
+            if (is.null(Sys.info()))
+                errorTitle <- "File browser unsupported for this system"
+            else if (isRStudioServer())
+                errorTitle <- "File browser unsupported in RStudio Server"
+            else
+                updateFileBrowserInput(session, id, ...)
+            
+            if (!is.null(errorTitle)) {
+                errorModal(session, errorTitle, 
+                           "Please use the text input to type the full path to",
+                           "the file or folder of interest.", modalId=modalId,
+                           caller="File browser")
+            }
         }
     })
 }
-
 
 # Interactive ggplot ------------------------------------------------------
 

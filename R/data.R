@@ -157,8 +157,8 @@ processDatasetNames <- function(data) {
     for (each in names(ns)) {
         nse <- names(newData[[each]])
         
-        # For junction quantification, add the respective sequencing technology
-        index <- nse == "Junction quantification"
+        # For read quantification, add the respective sequencing technology
+        index <- nse %in% c("Junction quantification", "Gene expression")
         for (k in seq_along(nse)) {
             if (index[[k]]) {
                 file <- attr(newData[[each]][[k]], "filename")
@@ -240,8 +240,8 @@ ASquantFileInput <- function(ASquantFileId, speciesId, assemblyId){
                         "betwen 0 and 1.")))),
         selectizeInput(speciesId, "Species", choices="Human", width = "100%",
                        options=list(create=TRUE)),
-        selectizeInput(assemblyId, "Assembly", choices="hg19", width = "100%",
-                       options=list(create=TRUE)))
+        selectizeInput(assemblyId, "Assembly", choices=c("hg19", "hg38"),
+                       width = "100%", options=list(create=TRUE)))
 }
 
 #' @rdname appUI
@@ -292,13 +292,13 @@ dataUI <- function(id, tab) {
             "expression based on transcriptomic and sample-associated data ",
             "from The Cancer Genome Atlas (", tcga, "), the Genotype-Tissue ",
             "Expression (", gtex, ") project, Sequence Read Archive (", sra, 
-            ") or user-owned data.")),
+            ") or user-provided data.")),
         tags$br(), tags$br(), tags$ol(
             id="list",
             tags$li(HTML(paste0(
                 "Load gene expression values, alternative splicing ",
                 "junction quantification and/or sample-associated data ",
-                "from ", tcga, ", ", gtex, ", ", sra, " or user-owned data.",
+                "from ", tcga, ", ", gtex, ", ", sra, " or user-provided data.",
                 tags$br(), tags$small(
                     style="color: gray;",
                     "More data types will soon be supported.")))),
@@ -383,10 +383,10 @@ tabDataset <- function(ns, title, tableId, columns, visCols, data,
     multiPlotId        <- paste(tablename, "multiPlot", sep="-")
     loadingMultiPlotId <- paste(tablename, "loadingMultiPlot", sep="-")
     multiHighchartsPlots <- fluidRow(column(12, uiOutput(multiPlotId)))
-        # div(id=loadingMultiPlotId, class="progress",
-        #     div(class="progress-bar progress-bar-striped active",
-        #         role="progressbar", style="width:100%",
-        #         "Loading summary plots")))
+    # div(id=loadingMultiPlotId, class="progress",
+    #     div(class="progress-bar progress-bar-striped active",
+    #         role="progressbar", style="width:100%",
+    #         "Loading summary plots")))
     
     tabPanel(title, br(), download, br(),
              bsCollapse(
@@ -408,6 +408,7 @@ tabDataset <- function(ns, title, tableId, columns, visCols, data,
 #' @param input Shiny session input
 #' @param output Shiny session output
 #' 
+#' @importFrom shiny tags HTML
 #' @importFrom DT renderDataTable
 #' @importFrom shiny downloadHandler br
 #' @importFrom utils write.table
@@ -463,9 +464,41 @@ createDataTab <- function(index, data, name, session, input, output) {
         cols <- attr(table, "columns")
         cols <- ifelse(!is.null(cols), cols, "columns")
         
-        tags$div(
-            tags$h4(paste(ncol(table), cols)),
-            tags$h4(paste(nrow(table), rows)))
+        filename <- attr(table, "filename")
+        if (!is.null(filename)) {
+            filename <- prepareWordBreak(filename)
+            filename <- tags$small(tags$b("Loaded based on file:"),
+                                   tags$var(filename))
+        }
+        
+        settings <- attr(table, "settings")
+        if (!is.null(settings)) {
+            settingsDf <- data.frame(names(settings), sapply(
+                settings, function(item) 
+                    prepareWordBreak(paste(item, collapse=", "))))
+            colnames(settingsDf) <- c("Attribute", "Item")
+            settings <- table2html(
+                settingsDf, rownames=FALSE, thead=TRUE, 
+                class="table table-condensed table-striped")
+            settings <- tags$small(tagList(tags$b("Dataset settings"), 
+                                           settings))
+            settings <- gsub("&lt;", "<", settings, fixed=TRUE)
+            settings <- gsub("&gt;", ">", settings, fixed=TRUE)
+            settings <- HTML(settings)
+        }
+        
+        extra <- NULL
+        if ( !is.null(filename) || !is.null(settings) ) {
+            extra <- tagList(
+                tags$hr(), filename, 
+                if (!is.null(filename) && !is.null(settings)) 
+                    tagList(tags$br(), tags$br()), 
+                settings)
+        }
+        
+        tags$div(tags$h4(paste(ncol(table), cols)), 
+                 tags$h4(paste(nrow(table), rows)),
+                 extra)
     })
 }
 

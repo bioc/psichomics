@@ -26,6 +26,8 @@
 \alias{setPCA}
 \alias{getICA}
 \alias{setICA}
+\alias{getCorrelation}
+\alias{setCorrelation}
 \alias{getGroupIndependenceTesting}
 \alias{setGroupIndependenceTesting}
 \alias{getSpecies}
@@ -88,6 +90,10 @@ getICA(category = getCategory())
 
 setICA(ica, category = getCategory())
 
+getCorrelation(category = getCategory())
+
+setCorrelation(correlation, category = getCategory())
+
 getGroupIndependenceTesting(category = getCategory())
 
 setGroupIndependenceTesting(groupIndependenceTesting,
@@ -130,6 +136,8 @@ dataset is returned)}
 
 \item{ica}{Object containing independent component analysis}
 
+\item{correlation}{\code{prcomp} object (correlation analyses)}
+
 \item{groupIndependenceTesting}{Object containing group independence testing
 results}
 
@@ -150,5 +158,5 @@ Get or set globally accessible elements
 }
 \seealso{
 \code{\link{getEvent}}, \code{\link{getClinicalMatchFrom}},
-\code{\link{getGroups}} and \code{\link{getDifferentialAnalyses}}
+\code{\link{getGroups}} and \code{\link{getDifferentialSplicing}}
 }

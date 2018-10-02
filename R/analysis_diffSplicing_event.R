@@ -28,13 +28,10 @@ diffSplicingEventUI <- function(id) {
     
     singleEventOptions <- div(
         id=ns("singleEventOptions"),
-        selectGroupsUI(
-            ns("diffGroups"),
-            label="Groups of samples to analyse",
-            noGroupsLabel="All samples as one group",
-            groupsLabel="Samples by selected groups"),
-        actionButton(ns("analyse"), "Perform analyses",
-                     class="btn-primary"),
+        selectGroupsUI(ns("diffGroups"), label="Groups of samples to analyse",
+                       noGroupsLabel="All samples as one group",
+                       groupsLabel="Samples by selected groups"),
+        actionButton(ns("analyse"), "Perform analyses", class="btn-primary"),
         uiOutput(ns("basicStats")),
         hidden(survival))
     
@@ -58,9 +55,8 @@ diffSplicingEventUI <- function(id) {
                 errorDialog(
                     paste("Alternative splicing quantification is required for",
                           "differential splicing analysis."),
-                    id=ns("missingIncLevels"),
+                    id=ns("missingIncLevels"), buttonIcon="calculator",
                     buttonLabel="Alternative splicing quantification",
-                    buttonIcon="calculator",
                     buttonId=ns("missingIncLevelsButton")),
                 hidden(singleEventOptions)),
             mainPanel(
@@ -89,7 +85,8 @@ diffSplicingEventServer <- function(input, output, session) {
         event <- getEvent()
         if (is.null(event) || event == "") {
             errorModal(session, "No event selected",
-                       "Please, select an alternative splicing event.")
+                       "Please, select an alternative splicing event.",
+                       caller="Differential splicing analysis")
             return(NULL)
         }
         
@@ -107,11 +104,12 @@ diffSplicingEventServer <- function(input, output, session) {
         }
         
         # Check if analyses were already performed
-        stats <- getDifferentialAnalyses()
-        if (!is.null(stats) && identical(attrGroups, attr(stats, "groups")))
+        stats <- getDifferentialSplicing()
+        if (!is.null(stats) && identical(attrGroups, attr(stats, "groups"))) {
             stat <- stats[event, ]
-        else
+        } else {
             stat <- NULL
+        }
         
         # Separate samples by their groups
         eventPSI <- as.numeric(psi[event, ])
@@ -139,7 +137,6 @@ diffSplicingEventServer <- function(input, output, session) {
     
     observeEvent(input$missingInclusionLevels, 
                  missingDataGuide("Inclusion levels"))
-    
     observeEvent(input$missingIncLevelsButton, 
                  missingDataGuide("Inclusion levels"))
     

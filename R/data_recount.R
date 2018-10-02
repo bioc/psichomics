@@ -12,8 +12,8 @@ recountDataUI <- function(id, panel) {
           helpText(
               "Gene expression, junction quantification and sample metadata",
               "from select SRA projects are downloaded through the",
-                   a(href="https://jhubiostatistics.shinyapps.io/recount/",
-                     target="_blank", "recount"), "R package."),
+              a(href="https://jhubiostatistics.shinyapps.io/recount/",
+                target="_blank", "recount"), "R package."),
           div(class="alert", class="alert-info", role="alert", 
               "Data from SRA projects not listed below may be manually loaded",
               "after splice-aware alignment.",
@@ -50,14 +50,8 @@ loadSRAproject <- function(project, outdir=getDownloadsFolder()) {
                 paste(project[!available], collapse=", "))
     }
     
-    project <- project[available]
-    for (sra in project) {
-        # Check which files that were not yet downloaded
-        folder        <- file.path(outdir, sra)
-        geneExpr      <- file.path(folder, "rse_gene.Rdata")
-        junctionQuant <- file.path(folder, "rse_jx.Rdata")
-        sampleInfo    <- file.path(folder, paste0(sra, ".tsv"))
-        
+    downloadRequiredSRAfiles <- function(folder, geneExpr, junctionQuant, 
+                                         sampleInfo, sra) {
         fileType <- c("rse-gene"=geneExpr,
                       "rse-jx"=junctionQuant, 
                       "phenotype"=sampleInfo)
@@ -77,26 +71,22 @@ loadSRAproject <- function(project, outdir=getDownloadsFolder()) {
             
             sapply(fileTypeToDownload, downloadProject, sra=sra, folder=folder)
         }
-        
-        recountEnv  <- new.env()
-        data[[sra]] <- list()
-        
-        # Gene expression
-        updateProgress(paste("Loading", sra), detail="Gene expression")
+    }
+    
+    loadGeneExpression <- function(geneExpr, recountEnv) {
         load(geneExpr, recountEnv)
         geneExpr <- as.data.frame(assay(recountEnv$rse_gene))
-        geneExpr <- addObjectAttrs(
-            geneExpr,
-            "rowNames"=1,
-            "tablename"="Gene expression",
-            "description"="Gene expression",
-            "dataType"="Gene expression",
-            "rows"="genes",
-            "columns"="samples")
-        data[[sra]][["Gene expression"]] <- geneExpr
-        
-        # Junction quantification
-        updateProgress(paste("Loading", sra), detail="Junction quantification")
+        geneExpr <- addObjectAttrs(geneExpr,
+                                   "rowNames"=1,
+                                   "tablename"="Gene expression",
+                                   "description"="Gene expression",
+                                   "dataType"="Gene expression",
+                                   "rows"="genes",
+                                   "columns"="samples")
+        return(geneExpr)
+    }
+    
+    loadJunctionQuantification <- function(junctionQuant, recountEnv) {
         load(junctionQuant, recountEnv)
         rse_jx <- recountEnv$rse_jx
         junctionQuant <- as.data.frame(assay(rse_jx))
@@ -120,7 +110,31 @@ loadSRAproject <- function(project, outdir=getDownloadsFolder()) {
             "dataType"="Junction quantification",
             "rows"="splice junctions",
             "columns"="samples")
-        data[[sra]][["Junction quantification"]] <- junctionQuant
+        return(junctionQuant)
+    }
+    
+    project <- project[available]
+    for (sra in project) {
+        # Download required files if needed
+        folder        <- file.path(outdir, sra)
+        geneExpr      <- file.path(folder, "rse_gene.Rdata")
+        junctionQuant <- file.path(folder, "rse_jx.Rdata")
+        sampleInfo    <- file.path(folder, paste0(sra, ".tsv"))
+        downloadRequiredSRAfiles(
+            folder, geneExpr, junctionQuant, sampleInfo, sra)
+        
+        recountEnv  <- new.env()
+        data[[sra]] <- list()
+        
+        # Load gene expression
+        updateProgress(paste("Loading", sra), detail="Gene expression")
+        data[[sra]][["Gene expression"]] <- loadGeneExpression(
+            geneExpr, recountEnv)
+        
+        # Load junction quantification
+        updateProgress(paste("Loading", sra), detail="Junction quantification")
+        data[[sra]][["Junction quantification"]] <- loadJunctionQuantification(
+            junctionQuant, recountEnv)
         
         # Sample metadata
         updateProgress(paste("Loading", sra), detail="Sample metadata")
@@ -168,40 +182,52 @@ recountDataServer <- function(input, output, session) {
     observeEvent(input$loadRecountData, {
         isolate({
             outdir  <- input$dataFolder
-            project <- isolate(input$project)
+            project <- input$project
         })
         
-        startProcess("loadRecountData")
-        
-        if (!is.null(getData())) {
+        if (is.null(project)) {
+            errorModal(session, "No project selected",
+                       "Select at least one project to load.",
+                       caller="Load recount data", modalId="recountDataModal")
+        } else if (!dir.exists(outdir)) {
+            errorModal(session, "Folder not found",
+                       "The selected folder", 
+                       tags$kbd(prepareWordBreak(outdir)), "was not found.",
+                       caller="Load recount data", modalId="recountDataModal")
+        } else if (!is.null(getData())) {
             loadedDataModal(session, "recountDataModal", 
                             "recountDataReplace", "recountDataAppend")
         } else {
+            startProcess("loadRecountData")
             data <- loadSRAproject(project, outdir)
             setData(data)
+            endProcess("loadRecountData")
         }
-        endProcess("loadRecountData")
     })
     
     observeEvent(input$recountDataReplace, {
         isolate({
             outdir  <- input$dataFolder
-            project <- isolate(input$project)
+            project <- input$project
         })
         
+        startProcess("loadRecountData")
         data <- loadSRAproject(project, outdir)
         setData(data)
+        endProcess("loadRecountData")
     })
     
     observeEvent(input$recountDataAppend, {
         isolate({
             outdir  <- input$dataFolder
-            project <- isolate(input$project)
+            project <- input$project
         })
         
+        startProcess("loadRecountData")
         data <- loadSRAproject(project, outdir)
         data <- processDatasetNames(c(getData(), data))
         setData(data)
+        endProcess("loadRecountData")
     })
 }
 
