@@ -454,7 +454,7 @@ diffSplicingSet <- function(session, input, output) {
             attrGroups <- "All samples"
             groups <- rep(attrGroups, ncol(psi))
         }
-
+        
         # Prepare splicing events to analyse
         ASevents <- getSelectedGroups(input, "diffASevents", "ASevents",
                                       filter=rownames(psi))
