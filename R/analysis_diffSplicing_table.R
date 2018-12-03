@@ -461,18 +461,6 @@ diffSplicingSet <- function(session, input, output) {
         if (!is.null(ASevents) ) 
             psi <- psi[unique(unlist(ASevents)), , drop=FALSE]
         
-        # Prepare splicing events to analyse
-        ASevents <- getSelectedGroups(input, "diffASevents", "ASevents",
-                                      filter=rownames(psi))
-        if (!is.null(ASevents) ) 
-            psi <- psi[unique(unlist(ASevents)), , drop=FALSE]
-        
-        # Prepare splicing events to analyse
-        ASevents <- getSelectedGroups(input, "diffASevents", "ASevents",
-                                      filter=rownames(psi))
-        if (!is.null(ASevents) ) 
-            psi <- psi[unique(unlist(ASevents)), , drop=FALSE]
-        
         stats <- diffAnalyses(psi, groups, statsChoices,
                               pvalueAdjust=pvalueAdjust)
         attr(stats, "groups") <- attrGroups
