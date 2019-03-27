@@ -1395,48 +1395,6 @@ groupManipulation <- function(input, output, session, type) {
                                thead=TRUE),
                     extra)
         })
-        
-        # Preview group creation
-        output[[paste0("previewGroups", id)]] <- renderUI({
-            col <- input[[paste0("groupAttribute", id)]]
-            if (is.null(col) || col == "") return(NULL)
-            
-            if (id == "Patients")
-                dataset <- getClinicalData()
-            else if (id == "Samples")
-                dataset <- getSampleInfo()
-            
-            group <- createGroupByAttribute(col, dataset)
-            
-            # Only preview up to a given number of groups
-            groupsToPreview <- 6
-            sub             <- head(group, groupsToPreview)
-            sub             <- cbind(names(sub), sub)
-            colnames(sub)   <- c("Group", id)
-            sub             <- matchGroupPatientsAndSamples(id, sub)
-            
-            table <- cbind(sub[ , "Group"],
-                           if ("Patients" %in% colnames(sub))
-                               as.character(sapply(sub[ , "Patients"], length)),
-                           if ("Samples" %in% colnames(sub))
-                               as.character(sapply(sub[ , "Samples"], length)))
-            colnames(table) <- colnames(sub)
-            
-            extra <- NULL
-            totalGroups <- length(group)
-            if (totalGroups > groupsToPreview) {
-                table <- rbind(table, rep("(...)", 3))
-                extra <- helpText(style="text-align: right;",
-                                  sprintf("Previewing %s out of %s groups",
-                                          groupsToPreview, totalGroups))
-            }
-            
-            tagList(tags$hr(), tags$label("Group preview"),
-                    table2html(table, rownames=FALSE, style="margin-bottom: 0;",
-                               class="table table-condensed table-striped",
-                               thead=TRUE),
-                    extra)
-        })
     }
     
     if (type == "Samples") {

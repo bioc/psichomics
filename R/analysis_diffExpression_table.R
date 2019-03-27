@@ -41,11 +41,6 @@ diffExpressionTableUI <- function(id) {
                     "compute moderated t-tests and log-odds of differential",
                     "expression by empirical Bayes moderation of the standard",
                     "errors towards a common value."),
-                radioButtons(
-                    ns("ebayesPriorVar"), "Prior gene-wise variance modelling",
-                    list("Constant pooled variance"="constant",
-                         "Mean-variance trend (limma-trend)"="trend"),
-                    selected="trend"),
                 sliderInput(
                     ns("ebayesProportion"), min=0, max=1, value=0.01, step=0.01,
                     width="100%",

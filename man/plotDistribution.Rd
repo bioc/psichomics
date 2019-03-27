@@ -2,7 +2,6 @@
 % Please edit documentation in R/analysis.R
 \name{plotDistribution}
 \alias{plotDistribution}
-\alias{plotDensity}
 \title{Plot distribution through a density plot}
 \usage{
 plotDistribution(data, groups = NULL, rug = TRUE, vLine = TRUE, ...,

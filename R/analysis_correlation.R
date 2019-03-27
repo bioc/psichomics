@@ -545,24 +545,6 @@ as.table.GEandAScorrelation <- function (x, pvalueAdjust="BH", ...) {
     return(data)
 }
 
-#' @rdname plotCorrelation
-plot.GEandAScorrelation <- plotCorrelation
-
-print.GEandAScorrelation <- function(object) {
-    for (item in object) {
-        for (elem in item) {
-            consoleWidth <- options("width")
-            cat(paste(rep("=", consoleWidth), collapse=""), fill=TRUE)
-            cat(sprintf("%s splicing event\n%s gene expression", 
-                        elem$eventID, elem$gene), fill=TRUE)
-            if (!is.null(elem$cor))
-                print(elem$cor)
-            else
-                cat("\nNo correlation performed\n", fill=TRUE)
-        }
-    }
-}
-
 #' @rdname appServer
 #' 
 #' @importFrom shiny renderUI observeEvent isolate tagList tags
@@ -660,114 +642,6 @@ correlationServer <- function(input, output, session) {
         setCorrelation(corr)
         displayCorrTable()
         endProcess("correlate")
-    })
-    
-    # Plot correlation analyses
-    plotShinyCorr <- reactive({
-        ns <- session$ns
-        corr <- getCorrelation()
-        if (is.null(corr)) return(NULL)
-        
-        autoZoom    <- input$zoom
-        autoZoom    <- identical(autoZoom, "auto")
-        
-        colour      <- input$colour
-        alpha       <- input$alpha/100
-        size        <- input$size
-        fontSize    <- input$fontSize
-        
-        loessSmooth <- input$loessSmooth
-        loessColour <- input$loessColour
-        loessWidth  <- input$loessWidth
-        loessFamily <- input$loessFamily
-        
-        plotDensity   <- input$plotDensity
-        densityColour <- input$densityColour
-        densityWidth  <- input$densityWidth
-        showAllData   <- input$groupColourShowAllData
-        
-        # Colour samples based on groups
-        groupColour <- getSelectedGroups(
-            input, "groupColour", "Samples", filter=names(corr[[1]][[1]]$psi))
-        
-        plots <- plotCorrelation(
-            corr, colour=colour, alpha=alpha, size=size, fontSize=fontSize,
-            autoZoom=autoZoom, loessFamily=loessFamily, loessSmooth=loessSmooth,
-            loessColour=loessColour, loessWidth=loessWidth, 
-            colourGroups=groupColour, density=plotDensity, 
-            densityColour=densityColour, densityWidth=densityWidth,
-            showAllData=showAllData)
-        plots <- unlist(plots, recursive=FALSE)
-        
-        # Plot all groups
-        output$correlations <- renderUI({
-            distributeByCol <- function(id, len, cols, height) {
-                ncols <- len
-                nrows <- ceiling(len/cols)
-                eachRow <- list()
-                # Create rows
-                for (i in seq(nrows)) {
-                    eachCol <- list()
-                    # Create columns
-                    for (k in seq( min(cols, ncols) )) {
-                        content <- plotOutput(paste0(id, k + cols * (i - 1)),
-                                              height=height)
-                        eachCol <- c(eachCol, list(column(12 / cols, content)))
-                    }
-                    eachRow <- c(eachRow, list(do.call(fluidRow, eachCol)))
-                    ncols   <- ncols - cols
-                }
-                do.call(tagList, eachRow)
-            }
-            
-            cols   <- as.numeric(input$cols)
-            height <- input$height
-            if ( length(cols) > 0 && height > 0 ) {
-                height <- paste0(height, "px")
-                tagList(
-                    distributeByCol(ns("plot"), length(plots), cols, height), 
-                    hr())
-            }
-        })
-        
-        lapply(seq(plots), function(i)
-            output[[paste0("plot", i)]] <- renderPlot(plots[[i]]))
-    })
-    
-    displayCorrTable <- reactive({
-        corr <- getCorrelation()
-        if (is.null(corr)) return(NULL)
-        
-        # Prepare table with correlation analyses
-        eventID  <- unlist(lapply(corr, lapply, "[[", "eventID"))
-        gene     <- unlist(lapply(corr, lapply, "[[", "gene"))
-        estimate <- unlist(lapply(corr, lapply, 
-                                  function(i) i[["cor"]][["estimate"]][[1]]))
-        pvalue   <- unlist(lapply(corr, lapply, 
-                                  function(i) i[["cor"]][["p.value"]]))
-        method   <- unlist(lapply(corr, lapply, 
-                                  function(i) i[["cor"]][["method"]]))
-        qvalue   <- p.adjust(pvalue)
-        
-        method <- unique(method)
-        if (length(method) != 1) 
-            stop("Only one correlation method is currently supported.")
-        
-        data           <- data.frame(gsub("_", " ", eventID, fixed=TRUE), 
-                                     gene, estimate, pvalue, qvalue)
-        colnames(data) <- c("Alternative splicing event", "Protein",
-                            method, "p-value", "p-value (BH adjusted)")
-        
-        show("corTable")
-        output$corTable <- renderDataTable(
-            data, style="bootstrap", server=TRUE, rownames=FALSE, 
-            selection="none", options=list(scrollX=TRUE))
-        
-        show("saveTable")
-        output$saveTable <- downloadHandler(
-            filename=function() paste(getCategory(), "Correlations"),
-            content=function(con)
-                write.table(data, con, quote=FALSE, sep="\t", row.names=FALSE))
     })
     
     observeEvent(input$correlate, {
@@ -922,12 +796,6 @@ correlationServer <- function(input, output, session) {
                              choices=geneChoices)
         updateSelectizeInput(session, "selectedASeventsToPlot", 
                              choices=ASeventChoices)
-    })
-    
-    observeEvent(input$applyPlotStyle, {
-        startProcess("applyPlotStyle")
-        plotShinyCorr()
-        endProcess("applyPlotStyle")
     })
     
     observeEvent(input$missingInclusionLevels, 
