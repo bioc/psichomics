@@ -365,7 +365,6 @@ correlateGEandAS <- function(geneExpr, psi, gene, ASevents=NULL, ...) {
 #' aes theme_light scale_colour_manual geom_density_2d
 #' @importFrom stats loess.smooth
 #'
-#' @method plot GEandAScorrelation
 #' @export
 #' @return Plots, summary tables or results of correlation analyses
 #'
