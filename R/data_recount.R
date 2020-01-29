@@ -17,7 +17,8 @@ recountDataUI <- function(id, panel) {
           div(class="alert", class="alert-info", role="alert", 
               "SRA data unlisted below may be manually aligned and loaded.",
               tags$a(
-                  href="http://rpubs.com/nuno-agostinho/psichomics-custom-data",
+                  href=paste0("https://nuno-agostinho.github.io/psichomics/",
+                              "articles/custom_data.html"),
                   class="alert-link", target="_blank", "Learn more...")),
           div(id=ns("loading"), class="progress",
               div(class="progress-bar progress-bar-striped active",
@@ -25,16 +26,19 @@ recountDataUI <- function(id, panel) {
           uiOutput(ns("sraInterface")))
 }
 
-#' Download and load SRA projects
+#' Download and load SRA projects via
+#' \href{https://jhubiostatistics.shinyapps.io/recount/}{recount2}
 #' 
-#' @param project Character: SRA project identifiers to download
+#' @param project Character: SRA project identifiers (check
+#' \code{\link[recount]{recount_abstract}})
 #' @param outdir Character: directory to store the downloaded files
 #' 
 #' @importFrom recount download_study
 #' @importFrom data.table fread
 #' @importFrom SummarizedExperiment assay seqnames start end strand
-#' 
-#' @return List containing downloaded projects
+#'
+#' @family functions associated with SRA data retrieval
+#' @return List with loaded projects
 #' @export
 loadSRAproject <- function(project, outdir=getDownloadsFolder()) {
     data <- list()
@@ -93,7 +97,7 @@ loadSRAproject <- function(project, outdir=getDownloadsFolder()) {
         
         ## Remove non-canonical chromosomes
         valid  <- as.vector(seqnames(rse_jx)) %in% 
-            paste0("chr", c(1:22, "X", "Y", "M"))
+            paste0("chr", c(seq(22), "X", "Y", "M"))
         
         chr    <- as.vector(seqnames(rse_jx))[valid]
         start  <- start(rse_jx)[valid] - 1
