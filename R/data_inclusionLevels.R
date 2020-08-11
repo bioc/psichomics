@@ -324,8 +324,7 @@ loadCustomSplicingAnnotationSet <- function(session, input, output) {
                        caller="Custom alternative splicing annotation")
         } else {
             custom <- customAnnot$datapath
-            names(custom) <- sprintf("%s (%s, %s)", customAnnot$name,
-                                     input$customSpecies, input$customAssembly)
+            names(custom) <- customAnnot$name
             updateSelectizeInput(session, "annotation", selected=custom,
                                  choices=listAllAnnotations(custom))
             removeModal()
@@ -736,7 +735,7 @@ quantifySplicingSet <- function(session, input) {
 inclusionLevelsServer <- function(input, output, session) {
     ns <- session$ns
     observeEvent(input$missing, missingDataGuide("Junction quantification"))
-    
+
     prepareFileBrowser(session, input, "filterGenesFile")
 
     # Update available junction quantification according to loaded files

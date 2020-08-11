@@ -62,8 +62,6 @@ calculateAxisStats <- function(data, x, y=NULL,
                 cache[[stat]] <- vars[[stat]]
             }
         }
-        vars <- data.frame(vars, stringsAsFactors=FALSE)
-        return(vars)
     }
     vars <- data.frame(vars, stringsAsFactors=FALSE)
     return(list(vars=vars, cache=cache))

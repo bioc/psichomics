@@ -82,13 +82,6 @@ libraries;}
 column to be identical (only performed if \code{performVoom = TRUE}).}
 }
 }
-\details{
-\code{edgeR::calcNormFactors} will be used to normalise gene
-expression if one of the following methods is set: \code{TMM}, \code{RLE},
-\code{upperquartile} or \code{none}. However, \code{\link[limma]{voom}} will
-be used for normalisation if \code{performVoom = TRUE} and the selected 
-method is \code{quantile}.
-}
 \examples{
 geneExpr <- readFile("ex_gene_expression.RDS")
 normaliseGeneExpression(geneExpr)

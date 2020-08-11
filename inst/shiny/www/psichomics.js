@@ -174,20 +174,6 @@ function renderEvent (item, escape) {
 }
 
 /**
- * Render alternative splicing event
- */
-function renderEvent (item, escape) {
-    var tmp    = item.label.split(" __ "),
-        parsed = tmp[0].split("_"),
-        type   = parsed[0],
-        pos    = parsed[1],
-        gene   = parsed.slice(-1)[0],
-        svg    = tmp[1];
-    if (svg === undefined) svg = "";
-    return `<div>${svg}<b>${gene}</b> ${pos}<br>${type}</div>`;
-}
-
-/**
  * Set selected transcript
  * @param {String} transcript Transcript identifier
  */

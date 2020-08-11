@@ -414,21 +414,6 @@ appServer <- function(input, output, session) {
             attr(selected, "eventData") <- getSplicingEventData(psi)
             setEvent(selected)
         }
-        return(representation)
-    })
-    
-    # Update available alternative splicing events
-    observe({
-        representation <- prepareASeventsRepresentation()
-        selected <- getASevent()
-        if (!is.null(representation) && !is.null(selected)) {
-            # Move the selected alternative splicing event to the top
-            find <- match(selected, representation)
-            sort <- unique(c(find, seq(representation)))
-            representation <- representation[sort]
-        }   
-        updateSelectizeChoices(session, "selectizeEventElem", representation,
-                               server=TRUE)
     })
 
     # Display selected category

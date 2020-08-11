@@ -513,14 +513,6 @@ calculateInclusionLevels <- function(eventType, junctionQuant, annotation,
     coords     <- rownames(junctionQuant)
     showStrand <- any(grepl("\\+|\\-", coords))
     
-    prepareGenePresentation <- function(annotation) {
-        # Prepare presentation of multigenes
-        gene <- annotation$Gene
-        multigene <- lapply(gene, length) > 1
-        gene[multigene] <- lapply(gene[multigene], paste, collapse="/")
-        return(gene)
-    }
-    
     if (eventType == "SE") {
         # Remove duplicates based on columns used to create identifiers
         con1end    <- "Constitutive exon 1 end"

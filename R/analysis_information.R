@@ -828,48 +828,6 @@ plotSplicingEventHelper <- function(ASevent, data=NULL) {
     return(res)
 }
 
-prepareExternalLinks <- function(info, species, assembly, grch37, gene) {
-    linkTo <- function(title, href) {
-        tags$a(title, icon("external-link"), target="_blank", href=href)
-    }
-    
-    url <- list()
-    if (!is.null(info)) {
-        gene  <- info$id
-        chr   <- info$seq_region_name
-        start <- as.numeric(info$start)
-        end   <- as.numeric(info$end)
-        
-        ucscPos <- sprintf("chr%s:%s-%s", chr, start, end)
-        url$humanProteinAtlas <- sprintf(
-            "http://www.proteinatlas.org/%s/pathology", gene)
-        url$vastdb <- sprintf("http://vastdb.crg.eu/wiki/Gene:%s@Genome%s",
-                              gene, assembly)
-    } else {
-        ucscPos <- gene
-        url$humanProteinAtlas <- sprintf(
-            "http://www.proteinatlas.org/search/%s", gene)
-        url$vastdb <- paste0("http://vastdb.crg.eu/wiki/search?query=", gene)
-    }
-    url$ensembl   <- paste0("http://", if (grch37) { "grch37." }, 
-                            "ensembl.org/", species, "/", 
-                            "Gene/Summary?g=", gene)
-    url$ucsc      <- paste0("https://genome.ucsc.edu/cgi-bin/hgTracks?",
-                            if (grch37) { "db=hg19&" }, "position=", ucscPos)
-    url$geneCards <- paste0("http://www.genecards.org/cgi-bin/",
-                            "carddisp.pl?gene=", gene)
-    
-    links <- tagList(
-        if (!is.null(species) && species != "")
-            linkTo("Ensembl", url$ensembl),
-        linkTo("UCSC", url$ucsc),
-        linkTo("GeneCards", url$geneCards),
-        if (!is.null(species) && species == "human")
-            linkTo("Human Protein Atlas", url$humanProteinAtlas),
-        linkTo("VastDB", url$vastdb))
-    return(links)
-}
-
 #' @rdname appServer
 #' 
 #' @importFrom highcharter highchart %>%

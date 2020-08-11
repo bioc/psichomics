@@ -378,8 +378,6 @@ correlateGEandAS <- function(geneExpr, psi, gene, ASevents=NULL, ...) {
 #'
 #' @aliases plotCorrelation
 #'
-#' @aliases plotCorrelation
-#' 
 #' @examples
 #' annot <- readFile("ex_splicing_annotation.RDS")
 #' junctionQuant <- readFile("ex_junctionQuant.RDS")
@@ -599,11 +597,10 @@ correlationServer <- function(input, output, session) {
 
     # Update gene expression data
     observe({
-        if (input$groupColourShowAllData || 
-            input$groupColourSelection == "noGroups") {
-            show("colour", anim=TRUE)
-        } else {
-            hide("colour", anim=TRUE)
+        geneExpr <- getGeneExpression()
+        if ( !is.null(geneExpr) ) {
+            updateSelectizeInput(session, "geneExpr",
+                                 choices=rev(names(geneExpr)))
         }
     })
 
