@@ -315,9 +315,6 @@ loadTCGAsampleMetadata <- function(data) {
 #' cohort)
 #'
 #' @importFrom httr GET
-#' 
-#' @return Response from the Firebrowse API (it needs to be parsed)
-#' @keywords internal
 #'
 #' @return Response from the Firebrowse API (it needs to be parsed)
 #' @keywords internal

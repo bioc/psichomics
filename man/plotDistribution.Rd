@@ -152,14 +152,6 @@ plotDistribution(data, groups)
 # Using colours
 attr(groups, "Colour") <- c("Group A"="pink", "Group B"="orange")
 plotDistribution(data, groups)
-
-# Using colours
-attr(groups, "Colour") <- c("Group A"="pink", "Group B"="orange")
-plotDistribution(data, groups)
-}
-\seealso{
-Other functions to perform and plot differential analyses: 
-\code{\link{diffAnalyses}()}
 }
 \seealso{
 Other functions to perform and plot differential analyses: 

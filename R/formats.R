@@ -270,9 +270,6 @@ loadFile <- function(file, formats=loadFileFormats(), ..., verbose=FALSE,
         ## TODO(NunoA): ask the user which file format to use
         stop("Error: more than one file format was recognised.")
     } else if (sum(recognised) == 1) {
-        if (verbose) {
-            message("Recognised format: ", names(recognised[recognised]))
-        }
         format <- formats[recognised][[1]]
         loaded <- parseFile(format, file, ..., verbose=verbose)
         # Avoid returning more than one dataset when not expected

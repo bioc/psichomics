@@ -620,7 +620,7 @@ survivalServer <- function(input, output, session) {
 
         surv <- tryCatch(survfit(survTerms), error=return)
         if ("simpleError" %in% class(surv)) {
-            errorModal(session, "Formula error", 
+            errorModal(session, "Formula error",
                        "The following error was raised:", br(),
                        tags$code(surv$message),
                        caller="Survival analysis")

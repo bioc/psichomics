@@ -191,7 +191,7 @@ parseVastToolsSE <- function (junctions) {
 
     parsed[["C1.end"]]   <- junctions[, 1]
     parsed[["C2.start"]] <- junctions[, 4]
-    
+
     # Plus strand
     parsed[plus, ][["A1.start"]] <- junctions[plus, 2]
     parsed[plus, ][["A1.end"]]   <- junctions[plus, 3]
