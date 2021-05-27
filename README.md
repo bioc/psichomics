@@ -31,6 +31,9 @@ alternative splicing and gene expression based on
 ## Table of Contents
 
 * [Install and start running](#install-and-start-running)
+    * [Bioconductor](#bioconductor)
+    * [GitHub](#github)
+    * [Docker](#docker)
 * [Tutorials](#tutorials)
 * [Workflow](#workflow)
     * [Data input](#data-input)
@@ -43,13 +46,53 @@ alternative splicing and gene expression based on
 
 ## Install and start running
 
+### Bioconductor
+
 To install the package from [Bioconductor][], type the following in [RStudio][]
 or in an R console:
 
 ```r
 install.packages("BiocManager")
 BiocManager::install("psichomics")
+library("psichomics")
 ```
+3. RStudio is now accessible via the web browser at https://localhost:8787
+4. Enter RStudio with user `rstudio` and password `bioc`
+5. Load psichomics using `library(psichomics)`
+6. Start the visual interface of psichomics with `psichomics()`
+
+Start the visual interface of psichomics with `psichomics()`
+
+### GitHub
+
+Install from GitHub (specify a branch or tag via the `ref` argument):
+
+```r
+install.packages("remotes")
+remotes::install_github("nuno_agostinho/psichomics", ref="master")
+library("psichomics")
+```
+
+Start the visual interface of psichomics with `psichomics()`
+
+### Docker
+
+The Docker images are based on [Bioconductor Docker][biocDocker] and contain psichomics and its dependencies.
+
+1. Pull the latest Docker image:
+```
+docker pull ghcr.io/nuno-agostinho/psichomics:latest
+```
+
+2. Start RStudio Web from the Docker image:
+```
+docker run -e PASSWORD=bioc -p 8787:8787 ghcr.io/nuno-agostinho/psichomics:latest
+```
+
+3. Go to RStudio Web via the web browser at https://localhost:8787
+4. Log in RStudio with user `rstudio` and password `bioc`
+5. Load psichomics using `library(psichomics)`
+6. Start the visual interface of psichomics with `psichomics()`
 
 ## Tutorials
 
@@ -58,7 +101,7 @@ The following case studies and tutorials are available and were based on our
 
 * [Visual interface][tutorial-gui]
 * [Command-line interface][tutorial-cli]
-* [Loading SRA, VAST-TOOLS and user-provided RNA-seq data][tutorial-custom-data]
+* [Loading user-provided data][tutorial-custom-data]
 * [Preparing alternative splicing annotations][tutorial-prep-AS-annotation]
 
 Another tutorial was published as part of the Methods in Molecular Biology book
@@ -80,9 +123,8 @@ information, junction quantification and gene expression data
 * [SRA][] data from select SRA projects via the [recount][] package
 
 Other SRA, [VAST-TOOLS][] and user-provided data can also be manually loaded.
-Please read
-[Loading SRA, VAST-TOOLS and user-provided RNA-seq data][tutorial-custom-data]
-for more information.
+Please read [Loading user-provided data][tutorial-custom-data] for more
+information.
 
 #### Alternative splicing quantification
 
