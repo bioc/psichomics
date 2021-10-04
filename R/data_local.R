@@ -92,25 +92,40 @@ localDataUI <- function(id, panel) {
                     tableRow("10:24257-25325", "83", "65")))))
     addMultipleFiles <- tagList(
         helpText("All fields below are optional."),
+
         h3(icon("vial"), "Metadata"),
-        sampleInfoBrowser,
-        subjectInfoBrowser,
+        sampleInfoFileInput(ns("sampleInfo"), clearable=TRUE),
+        subjectInfoFileInput(ns("subjectInfo"), clearable=TRUE),
         tags$hr(),
+
         h3(icon("dna"), "Molecular data"),
         geneExprFileInput(ns("geneExpr"), clearable=TRUE),
-        junctionQuantBrowser,
+        junctionQuantFileInput(ns("junctionQuant"), clearable=TRUE),
         ASquantFileInput(ns("ASquant"), clearable=TRUE),
         tags$hr(),
+
         textInput(ns("userFilesCategory"), label="Dataset name", width = "100%",
                   value="User dataset", placeholder="Name to identify dataset"),
         processButton(ns("loadMultipleFiles"), "Load files"))
 
+    if (getOption("shinyproxy", FALSE)) {
+        helper <- helpText(
+            "For your convenience, move all files to a single folder",
+            "and compress it into a ZIP archive.",
+            "Only files supported by psichomics will be loaded.")
+        fileBrowser <- fileInput(ns("localFolder"), "ZIP archive",
+                                 placeholder="No ZIP archive selected",
+                                 accept=".zip")
+    } else {
+        helper <- helpText(
+            "For your convenience, move all files to a single folder.",
+            "Only files supported by psichomics will be loaded.")
+        fileBrowser <- fileBrowserInput(ns("localFolder"), "Folder",
+                                        placeholder="No folder selected",
+                                        value=getDownloadsFolder())
+    }
     addFolder <- tagList(
-        helpText("For your convenience, move all files to a single folder.",
-                 "Only files supported by psichomics will be loaded."),
-        fileBrowserInput(ns("localFolder"), "Folder where data is stored",
-                         placeholder="No folder selected",
-                         value=getDownloadsFolder()),
+        helper, fileBrowser,
         textInput(ns("localCategory"), label="Dataset name",
                   placeholder="Name to identify dataset", width = "100%"),
         selectizeInput(ns("localIgnore"), "Files/directories to ignore",
@@ -370,12 +385,14 @@ removeRedundantDatasets <- function(data) {
 
 #' Load local files
 #'
-#' @param folder Character: path to folder containing files of interest
-#' @param name Character: name of the category containing all loaded datasets
+#' @param folder Character: path to folder or ZIP archive
+#' @param name Character: name
 #' @param ignore Character: skip folders and filenames that match the expression
-#' @param verbose Boolean: detail steps while parsing?
+#' @param verbose Boolean: print steps?
 #'
 #' @importFrom stats setNames
+#' @importFrom tools file_ext
+#' @importFrom utils unzip
 #'
 #' @family functions to load local files
 #' @family functions to load data
@@ -392,11 +409,17 @@ removeRedundantDatasets <- function(data) {
 #' }
 loadLocalFiles <- function(folder, ignore=c(".aux.", ".mage-tab."),
                            name="Data", verbose=FALSE) {
-    if (!dir.exists(folder)) stop("Folder does not exist.")
-
     time <- Sys.time()
-    # Get all files in the specified directory and subdirectories
-    files <- list.files(folder, recursive=TRUE, full.names=TRUE)
+
+    isZip <- file_ext(folder) == "zip"
+    if (isZip) {
+        if (!file.exists(folder)) stop("ZIP archive does not exist.")
+        files <- unzip(folder, exdir=tempdir())
+    } else {
+        if (!dir.exists(folder)) stop("Folder does not exist.")
+        # Get all files in the specified directory and subdirectories
+        files <- list.files(folder, recursive=TRUE, full.names=TRUE)
+    }
 
     # Exclude undesired subdirectories or files
     files <- files[!dir.exists(files)]
@@ -461,6 +484,8 @@ setLocalData <- function(input, output, session, replace=TRUE) {
     time <- startProcess("acceptFile")
 
     folder <- input$localFolder
+    if (getOption("shinyproxy", FALSE)) folder <- folder$datapath
+
     category <- input$localCategory
     if (identical(category, "")) category <- "User dataset"
     ignore <- c(".aux.", ".mage-tab.", input$localIgnore)
@@ -487,13 +512,15 @@ setMultipleFilesData <- function(input, output, session, replace=TRUE) {
     if (identical(category, "")) category <- "User dataset"
 
     # Load files
-    files <- c("Sample metadata"        =input$sampleInfo,
-               "Clinical data"          =input$subjectInfo,
-               "Gene expression"        =input$geneExpr,
-               "Junction quantification"=input$junctionQuant,
-               "Inclusion levels"       =input$ASquant)
-    files <- files[files != ""]
-    ASquant <- input$ASquant
+    files <- list("Sample metadata"        =input$sampleInfo,
+                  "Clinical data"          =input$subjectInfo,
+                  "Gene expression"        =input$geneExpr,
+                  "Junction quantification"=input$junctionQuant,
+                  "Inclusion levels"       =input$ASquant)
+    if (getOption("shinyproxy", FALSE)) files <- sapply(files, "[[", "datapath")
+    files   <- unlist(files)
+    files   <- files[files != ""]
+    ASquant <- files[["Inclusion levels"]]
 
     # Check if at least one input file was given
     if (length(files) == 0) {
@@ -584,8 +611,12 @@ localDataServer <- function(input, output, session) {
     # Update category name input based on given folder
     observe({
         folder <- input$localFolder
-        if (!is.null(folder))
+        if (getOption("shinyproxy", FALSE)) {
+            folder <- file_path_sans_ext(folder$name)
+        }
+        if (!is.null(folder)) {
             updateTextInput(session, "localCategory", value=basename(folder))
+        }
     })
 
     # If data is loaded, let user replace or append to loaded data
@@ -611,10 +642,18 @@ localDataServer <- function(input, output, session) {
     # If data is loaded, let user replace or append to loaded data
     observeEvent(input$acceptFile, {
         folder <- input$localFolder
-        if (!dir.exists(folder)) {
-            # Folder not found
+        if (getOption("shinyproxy", FALSE)) folder <- folder$datapath
+
+        isZip <- file_ext(folder) == "zip"
+        if (isZip && !file.exists(folder)) {
+            errorModal(session, "ZIP archive not found",
+                       "Check if the path is correct.",
+                       modalId="localDataModal", caller="Load local data")
+            enable("acceptFile")
+            return(NULL)
+        } else if (!isZip && !dir.exists(folder)) {
             errorModal(session, "Folder not found",
-                       "Check if the folder path is correct.",
+                       "Check if the path is correct.",
                        modalId="localDataModal", caller="Load local data")
             enable("acceptFile")
             return(NULL)
