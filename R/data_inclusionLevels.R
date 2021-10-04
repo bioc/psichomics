@@ -798,7 +798,6 @@ inclusionLevelsServer <- function(input, output, session) {
             updateSelectizeInput(session, "annotation", selected=selected,
                                  choices=choices)
         }
-        updateSelectizeInput(session, "annotation", selected=selected)
     })
 
     # Update default AS event annotation when changing dataset
