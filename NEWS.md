@@ -1,3 +1,10 @@
+# psichomics 1.22.1 (14 July, 2022)
+
+* Bug fix: GTEx data v8 can now be downloaded using newer versions of R
+* Bug fix: UniProt REST API call now uses the updated API
+* Bug fix: Updated deprecated setting to remove ggplot2 guide
+* Documentation: Clarify how to get survival plots in CLI tutorial
+
 # psichomics 1.20.2 (13 March, 2022)
 
 * Bug fix: fix limma-trend approach when using newer versions of limma to
