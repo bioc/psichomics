@@ -56,10 +56,6 @@ install.packages("BiocManager")
 BiocManager::install("psichomics")
 library("psichomics")
 ```
-3. RStudio is now accessible via the web browser at https://localhost:8787
-4. Enter RStudio with user `rstudio` and password `bioc`
-5. Load psichomics using `library(psichomics)`
-6. Start the visual interface of psichomics with `psichomics()`
 
 Start the visual interface of psichomics with `psichomics()`
 
@@ -84,9 +80,9 @@ The Docker images are based on [Bioconductor Docker][biocDocker] and contain psi
 docker pull ghcr.io/nuno-agostinho/psichomics:latest
 ```
 
-2. Start RStudio Web from the Docker image:
+2. Start RStudio Web from the Docker image (mount your own Downloads folder):
 ```
-docker run -e PASSWORD=bioc -p 8787:8787 ghcr.io/nuno-agostinho/psichomics:latest
+docker run -e PASSWORD=bioc -p 8787:8787 -v ~/Downloads:/home/rstudio/Downloads ghcr.io/nuno-agostinho/psichomics:latest
 ```
 
 3. Go to RStudio Web via the web browser at https://localhost:8787
@@ -181,7 +177,7 @@ articles.
 
 Please send any feedback and questions on psichomics to:
 
-> Nuno Saraiva-Agostinho ([nunoagostinho@medicina.ulisboa.pt][email])
+> Nuno Saraiva-Agostinho ([nunodanielagostinho@gmail.com][email])
 > 
 > [Disease Transcriptomics Lab, Instituto de Medicina Molecular (Portugal)][NMorais]
 
@@ -192,7 +188,7 @@ Kingsmore, G. P. Schroth, and C. B. Burge. 2008.
 [*Alternative isoform regulation in human tissue transcriptomes.*][Wang2008] 
 Nature 456 (7221): 470–76.
 
-[email]: mailto:nunoagostinho@medicina.ulisboa.pt
+[email]: mailto:nunodanielagostinho@gmail.com
 [TCGA]: https://tcga-data.nci.nih.gov
 [Bioconductor]: https://www.bioconductor.org
 [R]: https://www.r-project.org

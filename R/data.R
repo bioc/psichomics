@@ -517,9 +517,10 @@ dataUI <- function(id, tab) {
             tags$a(href="mailto:nunodanielagostinho@gmail.com",
                    "Nuno Saraiva-Agostinho", icon("envelope")),
             tags$br(),
-            sprintf("psichomics %s, 2015-2024", packageVersion("psichomics"))))
+            sprintf("psichomics %s, 2015-2026", packageVersion("psichomics"))))
 
     tab(title="Data", icon="table",
+        onCollapseOpen(ns("accordion")),
         sidebarLayout(
             sidebar( do.call(bsCollapse, c(id=ns("accordion"), uiList)) ),
             mainPanel( welcome, uiOutput(ns("tablesOrAbout")) ) ))
